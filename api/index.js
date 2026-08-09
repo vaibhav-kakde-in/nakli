@@ -38,7 +38,7 @@ app.get('/api/scan', async (c) => {
   const parsed = parseBrand(c.req.query('brand'))
   if (parsed.error) return c.json({ error: parsed.error }, 400)
 
-  const limit = Math.min(Number(c.req.query('limit')) || 2500, 5000)
+  const limit = Math.min(Number(c.req.query('limit')) || 1800, 5000)
   scansRun++
   const result = await runScan(parsed.origin, { limit })
   return c.json(result)
@@ -48,7 +48,7 @@ app.get('/api/scan/stream', async (c) => {
   const parsed = parseBrand(c.req.query('brand'))
   if (parsed.error) return c.json({ error: parsed.error }, 400)
 
-  const limit = Math.min(Number(c.req.query('limit')) || 2500, 5000)
+  const limit = Math.min(Number(c.req.query('limit')) || 1800, 5000)
   scansRun++
 
   const encoder = new TextEncoder()

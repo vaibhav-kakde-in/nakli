@@ -32,7 +32,12 @@ async function pool(items, limit, worker) {
 
 export async function runScan(input, opts = {}) {
   const {
-    limit = 4000,
+    // 1800, not 4000. Because candidates are emitted in priority tiers, cutting
+    // the limit removes the long tail of unlikely variants and keeps every
+    // exact-brand-on-another-TLD and combosquat - the classes that actually
+    // score high. Cheaper than raising concurrency and it costs no recall
+    // where it matters.
+    limit = 1800,
 
     // DNS stays deliberately modest. Public resolvers silently drop answers
     // when hammered, and a dropped answer is indistinguishable from "no such
@@ -41,12 +46,13 @@ export async function runScan(input, opts = {}) {
     // latency, because the losses come back as timeouts that must be retried.
     dnsConcurrency = 80,
 
-    // HTTP can go much wider than DNS - different bottleneck entirely. It was
-    // pinned at 50 only while the connection-pool leak in fetchProfile made
-    // concurrency actively harmful. With losers aborted properly, sockets are
-    // released promptly and this scales; a 249-host PayPal scan spent 85s here
-    // at 50.
-    httpConcurrency = 150,
+    // 50. Raising this to 150 cut the HTTP stage from 85s to 10.5s and was
+    // still WRONG: high-risk findings collapsed from 17 to 2. Lookalikes of one
+    // brand overwhelmingly resolve to the same CDN, so 150 parallel connections
+    // read as an attack and get throttled - every probe came back status=None
+    // while the baseline stayed healthy. The ceiling here belongs to the target,
+    // not to us, so scan volume is the lever instead (see `limit`).
+    httpConcurrency = 50,
     onEvent = () => {},
   } = opts
 
