@@ -20,12 +20,13 @@ zerops:
         - port: 3000
           httpSupport: true
       start: node api/index.js
+      # execPeriod/failureTimeout are time.Duration - bare ints are rejected
       healthCheck:
         httpGet:
           port: 3000
           path: /health
-        execPeriod: 10
-        failureTimeout: 60
+        execPeriod: 10s
+        failureTimeout: 60s
 
   # -------------------------------------------------------------- probe
   # No ports: pulls work off NATS, never serves HTTP.
