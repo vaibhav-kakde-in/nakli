@@ -116,6 +116,14 @@ body.run #recent{display:none}
   padding:5px 9px;font:400 12px 'Space Mono',monospace;color:var(--ink);opacity:0;z-index:9;white-space:nowrap
 }
 
+.threat{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);padding:3px 8px;white-space:nowrap}
+.homo{color:var(--high);font-family:'Space Mono',monospace;font-size:12px;margin-top:4px;display:block}
+.homo b{font-weight:400;background:rgba(220,52,30,.16);padding:1px 5px}
+.exports{margin-left:auto;display:flex;gap:8px}
+.exports a{border:1px solid var(--line);color:var(--muted);font:400 11px 'Space Grotesk';letter-spacing:.1em;padding:7px 12px;text-transform:uppercase;text-decoration:none}
+.exports a:hover{border-color:var(--pink);color:var(--pink)}
+.filters{align-items:center}
+
 /* ---------- findings ---------- */
 .results{margin:34px 0 60px;display:none}
 .results.on{display:block}
@@ -209,6 +217,7 @@ footer a{color:var(--muted)}
       <button data-f="high" aria-pressed="true">high</button>
       <button data-f="medium" aria-pressed="true">medium</button>
       <button data-f="low" aria-pressed="false">low</button>
+      <span class="exports" id="exports"></span>
     </div>
     <div id="rows"></div>
   </section>
@@ -285,14 +294,28 @@ function render(){
       ['mx records', f.mx?.length ? esc(f.mx.join(', ')) : 'none'],
       ['login form', f.hasLoginForm ? 'yes - password field present' : 'no'],
       ['favicon', f.faviconMatch ? 'identical to brand' : (f.faviconSha || '-')],
+      ['threat type', esc(THREATS[f.threat] || '-')],
+      ['evidence', f.evidenceKey ? 'page archived at scan time' : 'not archived'],
     ].map(([k,v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')
     return `<div class="row" data-d="${f.domain}">
         <div class="sc ${f.band}">${f.score}</div>
-        <div class="dom">${esc(f.domain)}<small>${esc((f.reasons||[]).slice(0,3).join(' · ')) || '&nbsp;'}</small></div>
-        <div class="tag ${f.band}">${f.band}</div>
+        <div class="dom">${esc(f.domain)}${f.homograph?.punycode
+          ? `<span class="homo">&#9888; ${esc(f.homographNote || 'non-ASCII characters')} &rarr; <b>${esc(f.homograph.punycode)}</b></span>` : ''}
+          <small>${esc((f.reasons||[]).slice(0,3).join(' · ')) || '&nbsp;'}</small></div>
+        <div class="threat">${esc(THREATS[f.threat] || f.band)}</div>
       </div>
       <div class="ev" data-e="${f.domain}"><dl>${ev}</dl></div>`
   }).join('')
+}
+const THREATS = {
+  'homograph-attack':     'Homograph attack',
+  'credential-harvester': 'Credential harvester',
+  'active-clone':         'Active clone',
+  'email-spoofer':        'Email spoofer',
+  redirector:             'Redirector',
+  'brand-squat':          'Brand squat',
+  parked:                 'Parked',
+  dormant:                'Dormant',
 }
 const esc = s => String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))
 const pct = v => v ? Math.round(v*100) + '%' : '-'
@@ -406,6 +429,9 @@ function finish(st, brand, restored=false){
     : `no high-risk impersonation found for <b>${esc(brand)}</b>`
   render()
   if (currentScanId){
+    $('#exports').innerHTML =
+      `<a href="/api/scan/${currentScanId}/export?format=csv">csv</a>` +
+      `<a href="/api/scan/${currentScanId}/export?format=json">json</a>`
     const url = location.origin + '/?scan=' + currentScanId
     $('#share').innerHTML = `saved &mdash; <code>${esc(url)}</code><button id="cp">copy</button>`
     $('#cp').onclick = () => { navigator.clipboard?.writeText(url); $('#cp').textContent = 'copied' }

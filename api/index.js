@@ -7,6 +7,8 @@ import { splitDomain } from '../core/permute.js'
 import { initDb, saveScan, loadScan, recentScans, dbHealth, dbEnabled } from '../core/db.js'
 import { connectBus, makeBusProbe } from '../core/bus.js'
 import { initCache, cacheHealth } from '../core/cache.js'
+import { initEvidence, evidenceEnabled } from '../core/evidence.js'
+import { describe } from '../core/classify.js'
 import { fetchProfile, makeResolver, resolveMx } from '../core/probe.js'
 
 const app = new Hono()
@@ -58,6 +60,7 @@ function startJob(origin, limit) {
   runScan(origin, {
     limit,
     probeHost,
+    scanId: id,
     onEvent: (ev) => {
       if (ev.type === 'permuted') job.progress = { stage: 'dns', candidates: ev.candidates }
       else if (ev.type === 'dns_progress') job.progress = { stage: 'dns', ...ev }
@@ -90,6 +93,7 @@ app.get('/api/health', async (c) =>
     db: await dbHealth(),
     bus: { connected: !!nc && !nc.isClosed(), server: nc?.getServer() ?? null },
     cache: await cacheHealth(),
+    evidence: { enabled: evidenceEnabled() },
   }))
 app.get('/api/recent', async (c) => c.json({ scans: await recentScans(12) }))
 
@@ -177,7 +181,7 @@ app.get('/api/scan/stream', (c) => {
       const beat = setInterval(() => send({ type: 'ping', t: Date.now() }), 10_000)
       send({ type: 'scan_id', scanId })
       try {
-        const result = await runScan(parsed.origin, { limit, probeHost, onEvent: send })
+        const result = await runScan(parsed.origin, { limit, probeHost, scanId, onEvent: send })
         await saveScan(scanId, parsed.origin, result).catch(() => false)
         send({ type: 'result', scanId, stats: result.stats, findings: result.findings })
       } catch (err) {
@@ -196,6 +200,49 @@ app.get('/api/scan/stream', (c) => {
       connection: 'keep-alive',
       // the Zerops L7 balancer buffers responses by default; SSE needs it off
       'x-accel-buffering': 'no',
+    },
+  })
+})
+
+/** Export a finished scan. CSV for spreadsheets and ticketing, JSON for tools. */
+app.get('/api/scan/:id/export', async (c) => {
+  const id = c.req.param('id')
+  const job = jobs.get(id)
+  const data = job?.status === 'done' ? { ...job.result, scanId: id } : await loadScan(id)
+  if (!data) return c.json({ error: 'unknown scan id' }, 404)
+
+  const fmt = (c.req.query('format') || 'csv').toLowerCase()
+  const stamp = (data.stats.origin || 'scan').replace(/[^a-z0-9.-]/gi, '_')
+
+  if (fmt === 'json') {
+    return new Response(JSON.stringify(data, null, 2), {
+      headers: {
+        'content-type': 'application/json',
+        'content-disposition': `attachment; filename="nakli-${stamp}.json"`,
+      },
+    })
+  }
+
+  const esc = (v) => {
+    const s = v == null ? '' : String(v)
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const head = ['domain', 'score', 'band', 'threat', 'ips', 'mx', 'http_status',
+                'title', 'title_match', 'content_match', 'login_form',
+                'favicon_match', 'punycode', 'reasons']
+  const rows = (data.findings || []).map((f) => [
+    f.domain, f.score, f.band, describe(f.threat).label,
+    (f.ips || []).join(' '), (f.mx || []).join(' '), f.httpStatus, f.title,
+    f.titleSimilarity != null ? Math.round(f.titleSimilarity * 100) + '%' : '',
+    f.bodySimilarity != null ? Math.round(f.bodySimilarity * 100) + '%' : '',
+    f.hasLoginForm ? 'yes' : 'no', f.faviconMatch ? 'yes' : 'no',
+    f.homograph?.punycode || '', (f.reasons || []).join('; '),
+  ].map(esc).join(','))
+
+  return new Response([head.join(','), ...rows].join('\n'), {
+    headers: {
+      'content-type': 'text/csv; charset=utf-8',
+      'content-disposition': `attachment; filename="nakli-${stamp}.csv"`,
     },
   })
 })
@@ -224,6 +271,7 @@ app.get('/api/scan/:id', async (c) => {
 
 await initDb()
 await initCache()
+initEvidence()
 
 // Route per-host probing through the NATS workers when the broker is up.
 const nc = await connectBus({ name: 'nakli-api' })

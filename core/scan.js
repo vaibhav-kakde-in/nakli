@@ -16,6 +16,9 @@ import {
 } from './probe.js'
 import { score, band } from './score.js'
 import { getMany, setMany, getWildcards, setWildcards, cacheEnabled } from './cache.js'
+import { analyzeHomograph, homographNote } from './homoglyph.js'
+import { classify } from './classify.js'
+import { archive, archiveManifest, evidenceEnabled } from './evidence.js'
 
 /** Run `worker` over `items` with a bounded number in flight. */
 async function pool(items, limit, worker) {
@@ -59,6 +62,7 @@ export async function runScan(input, opts = {}) {
     // Defaults to probing in-process, which keeps the module testable and means
     // a broker outage degrades performance rather than breaking the scan.
     probeHost = null,
+    scanId = null,
   } = opts
 
   const t0 = Date.now()
@@ -200,8 +204,27 @@ export async function runScan(input, opts = {}) {
       titleSimilarity: similarity(baseline.title?.toLowerCase(), prof.title?.toLowerCase()),
       bodySimilarity: similarity(baseline.text?.slice(0, 2000), prof.text?.slice(0, 2000)),
     }
+    // Homograph analysis before scoring: a visually identical domain is the
+    // single most dangerous case and must be able to influence both.
+    f.homograph = analyzeHomograph(domain, origin)
+    f.homographNote = homographNote(f.homograph)
+
     Object.assign(f, score(f, baseline))
+    if (f.homograph.visuallyIdentical) {
+      f.score = Math.min(100, f.score + 25)
+      f.reasons.unshift('visually identical to the real domain')
+    } else if (f.homograph.confusables.length) {
+      f.score = Math.min(100, f.score + 10)
+      f.reasons.unshift(f.homographNote)
+    }
     f.band = band(f.score)
+    f.threat = classify(f, baseline)
+
+    if (scanId && f.band !== 'low' && prof.html) {
+      f.evidenceKey = await archive(scanId, f, prof.html)
+    }
+    delete prof.html
+
     onEvent({ type: 'finding', finding: f })
     return f
   })
@@ -225,7 +248,12 @@ export async function runScan(input, opts = {}) {
     probedLocally: live.length - viaWorker,
     cacheHits: cached.size,
     cacheEnabled: cacheEnabled(),
+    evidenceArchived: findings.filter((f) => f.evidenceKey).length,
   }
+  if (scanId && evidenceEnabled()) {
+    await archiveManifest(scanId, stats, findings.filter((f) => f.band !== 'low'))
+  }
+
   onEvent({ type: 'done', stats })
   return { stats, baseline, findings }
 }

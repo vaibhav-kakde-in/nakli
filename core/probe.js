@@ -213,6 +213,9 @@ export async function fetchProfile(domain, { patient: usePatient = false } = {})
   out.title = m ? decode(m[1].replace(/\s+/g, ' ').trim()).slice(0, 120) : null
   out.text = stripTags(html)
   out.login = PW_RE.test(html)
+  // Retained so a finding can be archived as evidence; dropped before the
+  // finding is returned to the client.
+  out.html = html.slice(0, 500_000)
 
   try {
     const fav = await request(`https://${domain}/favicon.ico`, {
