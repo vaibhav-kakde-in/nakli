@@ -42,12 +42,31 @@ export async function connectBus({ name = 'nakli', timeout = 5000 } = {}) {
   // Scheme + host only - a connection string can carry credentials.
   console.log('[bus] target:', servers.replace(/\/\/[^@]*@/, '//***@'))
 
-  const opts = { servers, name, timeout, maxReconnectAttempts: -1, reconnectTimeWait: 1000 }
-  // Only pass credentials when the URL does not already carry them, otherwise
-  // nats.js has two competing sources of truth.
-  if (!servers.includes('@') && process.env.NATS_USER) {
-    opts.user = process.env.NATS_USER
-    opts.pass = process.env.NATS_PASSWORD
+  // nats.js does NOT read credentials out of the connection URL - userinfo in
+  // `servers` is ignored, and it connects anonymously. Zerops' connectionString
+  // embeds them (nats://user:pass@bus:4222), so relying on the URL alone fails
+  // with 'Authorization Violation'. Strip the URL down to host:port and always
+  // pass credentials explicitly.
+  let host = servers
+  let urlUser = null
+  let urlPass = null
+  try {
+    const u = new URL(servers)
+    host = `nats://${u.hostname}:${u.port || 4222}`
+    if (u.username) {
+      urlUser = decodeURIComponent(u.username)
+      urlPass = decodeURIComponent(u.password || '')
+    }
+  } catch {
+    /* not a parseable URL; use it as given */
+  }
+
+  const opts = { servers: host, name, timeout, maxReconnectAttempts: -1, reconnectTimeWait: 1000 }
+  const user = process.env.NATS_USER || urlUser
+  const pass = process.env.NATS_PASSWORD || urlPass
+  if (user) {
+    opts.user = user
+    opts.pass = pass
   }
 
   try {
