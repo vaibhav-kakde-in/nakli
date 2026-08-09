@@ -34,6 +34,12 @@ header{border-bottom:1px solid var(--line)}
 .brand em{font-style:normal;color:var(--pink)}
 .ghost{color:var(--muted);text-decoration:none;font-size:14px;border:1px solid var(--line);padding:7px 14px}
 .ghost:hover{color:var(--ink);border-color:var(--ink)}
+/* The nav only points at landing sections, so it goes when they do. */
+.nav{display:flex;gap:26px}
+.nav a{color:var(--muted);text-decoration:none;font-size:14px}
+.nav a:hover{color:var(--ink)}
+body.run .nav{display:none}
+.hend{display:flex;align-items:center;gap:14px}
 
 /* ---------- hero ---------- */
 .hero{padding:72px 0 40px;text-align:center}
@@ -63,7 +69,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
    the verdict + grid must be visible without scrolling. */
 body.run .hero{padding:22px 0 6px}
 body.run h1{font-size:clamp(20px,2.6vw,28px);letter-spacing:-.4px}
-body.run .sub,body.run .chips{display:none}
+/* The whole block goes, label included - hiding only .chips left its heading
+   standing over an empty row for the length of the scan. */
+body.run .sub,body.run #tryblock{display:none}
 .hero,h1{transition:font-size .3s ease,padding .3s ease}
 
 /* ---------- verdict ---------- */
@@ -218,8 +226,100 @@ body.run #recent{display:none}
 .ev a{color:var(--pink)}
 .empty{color:var(--muted);padding:26px;border:1px solid var(--line);text-align:center}
 
-footer{border-top:1px solid var(--line);color:var(--muted);font-size:13px;padding:22px 0 40px}
-footer a{color:var(--muted)}
+/* ---------- landing ---------- */
+/* Everything below the fold is marketing. The moment a scan starts it is in
+   the way of the answer, so the whole block leaves rather than being scrolled
+   past - same reasoning as the hero collapse above. */
+body.run .landing{display:none}
+.band{border-top:1px solid var(--line)}
+.band>.wrap{padding-top:78px;padding-bottom:78px}
+.kicker{display:flex;align-items:center;gap:11px;font:500 11.5px 'Space Grotesk',sans-serif;
+  letter-spacing:.19em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+.kicker::before{content:'';width:24px;height:1px;background:var(--pink);flex:none}
+.band h2{font-size:clamp(27px,3.7vw,42px);font-weight:400;letter-spacing:-.9px;line-height:1.08}
+.band .lede{color:var(--muted);margin-top:15px;max-width:62ch;font-size:16px;line-height:1.55}
+
+/* proof - real totals out of Postgres, not claims */
+.proof{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);margin-top:34px}
+/* Child combinator, not a descendant one - .n and .l are divs too, and a loose
+   selector gave them the cell's padding and border as well. */
+.proof>div{padding:24px 22px;border-right:1px solid var(--line)}
+.proof>div:last-child{border-right:0}
+.proof .n{font:400 clamp(28px,4.3vw,44px)/1 'Space Grotesk',sans-serif}
+.proof .l{color:var(--muted);font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin-top:9px}
+
+/* features */
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);margin-top:38px;
+  border:1px solid var(--line);border-right:0;border-bottom:0}
+.f{border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:28px 26px;background:var(--surface)}
+.f:hover{background:var(--surface-2)}
+.f svg{width:21px;height:21px;stroke:var(--pink);stroke-width:1.4;fill:none;
+  stroke-linecap:square;stroke-linejoin:miter;display:block;margin-bottom:15px}
+.f h3{font-size:15.5px;font-weight:500;line-height:1.3;margin-bottom:9px}
+.f p{font-size:13.5px;color:var(--muted);line-height:1.55}
+.f p b{color:#b8b8b2;font-weight:400;font-family:'Space Mono',monospace;font-size:12.5px}
+
+/* how it works */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:38px}
+.step{border-top:2px solid var(--pink);padding-top:20px}
+.step .num{font:400 12px 'Space Mono',monospace;color:var(--pink);letter-spacing:.1em}
+.step h3{font-size:20px;font-weight:400;margin:9px 0 10px;letter-spacing:-.3px}
+.step p{font-size:14px;color:var(--muted);line-height:1.55}
+.step ul{list-style:none;margin-top:13px;display:flex;flex-wrap:wrap;gap:6px}
+.step li{font:400 11.5px 'Space Mono',monospace;color:#b8b8b2;border:1px solid var(--line);padding:4px 9px}
+
+/* what it catches - labels and copy come straight from classify.js */
+.tgrid{display:grid;grid-template-columns:repeat(4,1fr);margin-top:38px;
+  border:1px solid var(--line);border-right:0;border-bottom:0}
+.t{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:21px 22px}
+.t h3{font-size:14.5px;font-weight:500;margin-bottom:7px}
+.t p{font-size:12.8px;color:var(--muted);line-height:1.5}
+
+/* one real finding, shown the way the results table shows it - the red here is
+   a verdict about an actual domain, which is the only thing red is allowed to be */
+.example{margin-top:38px;border:1px solid var(--line);background:var(--surface)}
+.example .top{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:14px;padding:15px 16px}
+.example .sc{font:400 26px/1 'Space Grotesk',sans-serif;color:var(--high);text-align:center}
+.example .dm{font:400 16px 'Space Mono',monospace}
+.example .dm mark{background:rgba(220,52,30,.18);color:var(--high);padding:1px 3px}
+.example .dm small{display:block;color:var(--muted);font-family:'Space Grotesk',sans-serif;font-size:12.5px;margin-top:4px}
+.example .why{border-top:1px solid var(--line);background:#1c1c1b;padding:14px 16px}
+.example .why dl{display:grid;grid-template-columns:150px 1fr;gap:8px 14px;font-size:13px}
+.example .why dt{color:var(--muted)}
+.example .why dd{font-family:'Space Mono',monospace;font-size:12.5px}
+.example .cap{color:var(--muted);font-size:12.5px;margin-top:11px}
+
+/* closing call to action */
+.cta>.wrap{text-align:center}
+.cta h2{max-width:22ch;margin:0 auto}
+.cta .lede{margin-left:auto;margin-right:auto}
+.cta button{margin-top:28px;padding:17px 36px;font-size:15px}
+
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+footer a{color:var(--muted);text-decoration:none}
+footer a:hover{color:var(--pink)}
+.fmain{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr;gap:44px;padding:66px 0 44px}
+.fsay{font-size:clamp(21px,2.7vw,31px);font-weight:400;color:var(--ink);letter-spacing:-.6px;line-height:1.16;max-width:15ch}
+/* Only the brand mark's dot is pink, exactly as it is in the header. The gloss
+   is italic, not coloured - pink is an action, and this is not one. */
+.fsay em{font-style:normal;color:var(--pink)}
+.fsay i{font-style:italic}
+.fnote{margin-top:18px;font-size:13px;line-height:1.6;max-width:44ch}
+.fcol h4{font:500 11px 'Space Grotesk',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#cfcfc9;margin-bottom:14px}
+.fcol a{display:block;margin-bottom:10px;font-size:13.5px}
+.fbot{border-top:1px solid var(--line);padding:20px 0 42px;display:flex;
+  justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;font-size:12.5px}
+.fbot .built a{color:var(--ink)}
+.fbot .built a:hover{color:var(--pink)}
+
+@media(max-width:980px){
+  .fgrid,.tgrid{grid-template-columns:repeat(2,1fr)}
+  .steps{grid-template-columns:1fr;gap:24px}
+  .fmain{grid-template-columns:1fr 1fr;gap:34px}
+  .fsay{grid-column:1/-1;max-width:22ch}
+}
 @media(max-width:620px){
   .stats{grid-template-columns:repeat(2,1fr)}
   .stat:nth-child(2){border-right:0}
@@ -229,13 +329,29 @@ footer a{color:var(--muted)}
   form{flex-direction:column}
   input{border-right:1px solid var(--line);border-bottom:0}
   button{padding:16px}
+  .band>.wrap{padding-top:54px;padding-bottom:54px}
+  .fgrid,.tgrid,.proof{grid-template-columns:1fr}
+  .proof>div{border-right:0;border-bottom:1px solid var(--line)}
+  .proof>div:last-child{border-bottom:0}
+  .example .top{grid-template-columns:52px 1fr}
+  .example .why dl{grid-template-columns:1fr}
+  .example .why dt{margin-top:6px}
+  .fmain{grid-template-columns:1fr;gap:30px;padding:48px 0 34px}
+  .nav{display:none}
 }
 </style>
 </head>
 <body>
 <header><div class="wrap hrow">
   <a class="brand" href="/">nakli<em>.</em></a>
-  <a class="ghost" href="https://github.com/vaibhav-kakde-in/nakli" target="_blank" rel="noopener">source</a>
+  <nav class="nav">
+    <a href="#how">How it works</a>
+    <a href="#catches">What it catches</a>
+    <a href="#features">Features</a>
+  </nav>
+  <div class="hend">
+    <a class="ghost" href="https://github.com/vaibhav-kakde-in/nakli" target="_blank" rel="noopener">source</a>
+  </div>
 </div></header>
 
 <div class="wrap">
@@ -300,10 +416,218 @@ footer a{color:var(--muted)}
 
 <div id="tip"></div>
 
+<main class="landing" id="landing">
+
+  <!-- Real totals, summed from the scans the API already returns. A claim we
+       cannot back with a row in Postgres does not go on this page. -->
+  <section class="band">
+    <div class="wrap">
+      <div class="kicker">Run so far</div>
+      <h2>Numbers from real scans, not a brochure.</h2>
+      <div class="proof">
+        <div><div class="n" id="p-scans">&mdash;</div><div class="l">scans run</div></div>
+        <div><div class="n" id="p-cand">&mdash;</div><div class="l">domains checked</div></div>
+        <div><div class="n" id="p-live">&mdash;</div><div class="l">hosts resolving</div></div>
+        <div><div class="n" id="p-high">&mdash;</div><div class="l">high risk found</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="how">
+    <div class="wrap">
+      <div class="kicker">How it works</div>
+      <h2>Three stages, about thirty seconds.</h2>
+      <p class="lede">Nothing is pre-computed and no list is bought in. Every scan generates its
+        candidates, checks them live, and measures each one against your real site as it stands today.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="num">01</div>
+          <h3>Permute</h3>
+          <p>One brand becomes roughly 1,800 candidate domains &mdash; character swaps, insertions and
+            omissions, homoglyph substitutions, phishing-keyword combos, and your exact name on every
+            common TLD. Candidates are emitted in priority tiers, so the highest-signal names are
+            always reached even when the limit cuts the tail.</p>
+          <ul><li>typos</li><li>homoglyphs</li><li>combosquats</li><li>TLD swaps</li></ul>
+        </div>
+        <div class="step">
+          <div class="num">02</div>
+          <h3>Probe</h3>
+          <p>Everything gets a DNS lookup, and whatever resolves is fetched over https and http at once
+            with the losing scheme aborted. Registries that resolve every name are caught by a
+            two-probe wildcard calibration and thrown out, so you are not handed hundreds of domains
+            that do not exist.</p>
+          <ul><li>DNS</li><li>HTTP</li><li>MX</li><li>favicon hash</li><li>wildcard calibration</li></ul>
+        </div>
+        <div class="step">
+          <div class="num">03</div>
+          <h3>Score &amp; classify</h3>
+          <p>Signals add up against a live baseline of your real site: title and body similarity,
+            favicon match, a password field, MX records. The total ranks the finding, a classifier
+            names the pattern behind it, and the page as we saw it is archived.</p>
+          <ul><li>additive score</li><li>stated reasons</li><li>threat class</li><li>evidence capture</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="catches">
+    <div class="wrap">
+      <div class="kicker">What it catches</div>
+      <h2>A score ranks. A class tells you what to do about it.</h2>
+      <p class="lede">A cloned login page steals credentials today. A registered domain with MX records
+        and no website is waiting to send mail as you. A parked domain is somebody speculating. Those
+        are three different problems, so nakli names them rather than handing you one number.</p>
+
+      <div class="tgrid">
+        <div class="t"><h3>Homograph attack</h3><p>Visually indistinguishable from your domain. No user can catch this by reading it.</p></div>
+        <div class="t"><h3>Credential harvester</h3><p>Imitates your site and asks for a password. Built to take logins.</p></div>
+        <div class="t"><h3>Active clone</h3><p>Serving a copy of your page right now.</p></div>
+        <div class="t"><h3>Email spoofer</h3><p>Can receive and send mail as your brand, with no website to give it away.</p></div>
+        <div class="t"><h3>Redirector</h3><p>Bounces visitors elsewhere &mdash; often traffic resale or a staging step.</p></div>
+        <div class="t"><h3>Brand squat</h3><p>Live site trading on your name.</p></div>
+        <div class="t"><h3>Parked</h3><p>Registered and held, not yet weaponised. Worth watching.</p></div>
+        <div class="t"><h3>Dormant</h3><p>Resolves but serves nothing. No immediate threat.</p></div>
+      </div>
+
+      <div class="example">
+        <div class="top">
+          <div class="sc">97</div>
+          <div class="dm">p<mark>а</mark>ypal.com<small>Homograph attack &mdash; the second character is Cyrillic, not Latin</small></div>
+          <span class="tag high">high</span>
+        </div>
+        <div class="why">
+          <dl>
+            <dt>Punycode</dt><dd>xn--pypal-4ve.com</dd>
+            <dt>Confusable</dt><dd>U+0430 CYRILLIC SMALL LETTER A &rarr; U+0061 LATIN SMALL LETTER A</dd>
+            <dt>Why it scored</dt><dd>resolves; serves HTTP 200; favicon identical to brand; password field present</dd>
+          </dl>
+        </div>
+      </div>
+      <p class="cap">An illustrative finding, laid out exactly as the results table renders it. The
+        punycode and codepoint are real &mdash; that is what this substitution actually encodes to.</p>
+    </div>
+  </section>
+
+  <section class="band" id="features">
+    <div class="wrap">
+      <div class="kicker">Features</div>
+      <h2>Built to be acted on, not just admired.</h2>
+      <p class="lede">Every finding carries its evidence, its reasoning and its raw data, because a
+        list of scary domains nobody can verify is worse than no list at all.</p>
+      <div class="fgrid">
+
+        <div class="f">
+          <svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg>
+          <h3>~1,800 candidates per brand</h3>
+          <p>Typos, homoglyphs, combosquats and TLD swaps, emitted in priority tiers so
+            <b>brand.net</b> is reached before the long tail &mdash; never sorted alphabetically.</p>
+        </div>
+
+        <div class="f">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3 3.2 15 0 18M12 3c-3.2 3-3.2 15 0 18"/></svg>
+          <h3>DNS, HTTP, MX and favicon</h3>
+          <p>Each candidate is resolved, then raced over both schemes, with mail records and favicon
+            hashes compared against a live baseline of your real site.</p>
+        </div>
+
+        <div class="f">
+          <svg viewBox="0 0 24 24"><path d="M3 20h18M6 20V11M11 20V5M16 20v-6"/></svg>
+          <h3>Scores that state their reasons</h3>
+          <p>Scoring is additive and every point carries a reason in plain language &mdash;
+            <b>favicon identical to brand</b>, <b>password field present</b>.</p>
+        </div>
+
+        <div class="f">
+          <svg viewBox="0 0 24 24"><path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="7.3" cy="7.3" r="1.3"/></svg>
+          <h3>Eight threat classifications</h3>
+          <p>The first matching pattern wins, most dangerous first, so a credential harvester is never
+            filed next to a parked domain.</p>
+        </div>
+
+        <div class="f">
+          <svg viewBox="0 0 24 24"><path d="M3 8h15l-4-4M21 16H6l4 4"/></svg>
+          <h3>Unicode homograph reveal</h3>
+          <p>Punycode decoding and confusable-skeleton comparison expose the characters no human
+            catches by reading &mdash; then show you the exact codepoint.</p>
+        </div>
+
+        <div class="f">
+          <svg viewBox="0 0 24 24"><path d="M3 8h18v12H3zM3 8l2.2-4h13.6L21 8M10 13h4"/></svg>
+          <h3>Evidence archived at scan time</h3>
+          <p>High and medium findings keep their captured page in object storage, so the proof outlives
+            the takedown that removes it.</p>
+        </div>
+
+        <div class="f">
+          <svg viewBox="0 0 24 24"><path d="M2 12h4.5l3.2-7.5L14 19l3-7h5"/></svg>
+          <h3>Live progress, not a spinner</h3>
+          <p>Server-sent events stream every lookup as it lands &mdash; one cell per candidate,
+            filling in as the answers arrive.</p>
+        </div>
+
+        <div class="f">
+          <svg viewBox="0 0 24 24"><path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M4 20h16"/></svg>
+          <h3>CSV and JSON export</h3>
+          <p>Fourteen columns per finding: score, band, threat, IPs, MX, similarity percentages,
+            punycode and the full reason list.</p>
+        </div>
+
+        <div class="f">
+          <svg viewBox="0 0 24 24"><path d="M9.5 13.5a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.2 1.2"/><path d="M14.5 10.5a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.2-1.2"/></svg>
+          <h3>Every scan is replayable</h3>
+          <p>Results persist with their grid and derived fields, so a shared link reopens the exact
+            scan you saw &mdash; then re-runs it live on demand.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section class="band cta">
+    <div class="wrap">
+      <h2>Someone has already registered a version of your name.</h2>
+      <p class="lede">The only question is which one, and what it is currently serving. Find out in
+        about thirty seconds.</p>
+      <button type="button" id="cta-scan">SCAN YOUR DOMAIN</button>
+    </div>
+  </section>
+
+</main>
+
 <footer><div class="wrap">
-  <strong>nakli</strong> &mdash; Hindi for <em>counterfeit</em>. Read-only checks against publicly served pages, rate limited.
-  Findings are candidates for human review, not verdicts. Built on
-  <a href="https://zerops.io" target="_blank" rel="noopener">Zerops</a>.
+  <div class="fmain">
+    <div>
+      <div class="fsay">nakli<em>.</em> Hindi for <i>counterfeit</i>.</div>
+      <p class="fnote">Read-only checks against publicly served pages, rate limited. Findings are
+        candidates for human review, not verdicts &mdash; a domain scoring 97 may be your own
+        defensive registration. Counts are a floor, never a total: when a target throttles us we
+        under-report rather than over-report.</p>
+    </div>
+    <div class="fcol">
+      <h4>Product</h4>
+      <a href="#how">How it works</a>
+      <a href="#catches">What it catches</a>
+      <a href="#features">Features</a>
+      <a href="#" id="f-top">Run a scan</a>
+    </div>
+    <div class="fcol">
+      <h4>Project</h4>
+      <a href="https://github.com/vaibhav-kakde-in/nakli" target="_blank" rel="noopener">Source</a>
+      <a href="https://github.com/vaibhav-kakde-in/nakli#readme" target="_blank" rel="noopener">README</a>
+      <a href="https://github.com/vaibhav-kakde-in/nakli/issues" target="_blank" rel="noopener">Issues</a>
+    </div>
+    <div class="fcol">
+      <h4>Built with</h4>
+      <a href="https://zerops.io" target="_blank" rel="noopener">Zerops</a>
+      <a href="https://hono.dev" target="_blank" rel="noopener">Hono</a>
+      <a href="https://nats.io" target="_blank" rel="noopener">NATS</a>
+      <a href="https://www.postgresql.org" target="_blank" rel="noopener">PostgreSQL</a>
+    </div>
+  </div>
+  <div class="fbot">
+    <span>Built for The Zerops Challenge.</span>
+    <span class="built">Running on <a href="https://zerops.io" target="_blank" rel="noopener">Zerops</a></span>
+  </div>
 </div></footer>
 
 <script>
@@ -519,20 +843,54 @@ async function loadRecent(){
     recent = (await fetch('/api/recent').then(x => x.json())).scans || []
   }catch{ /* landing page works without it */ }
 
+  const shown = recent.slice(0, 6)
+
   // A brand must never appear in both rows - the same chip twice is what makes
-  // the page look like canned data.
-  const taken = new Set(recent.map(s => s.brand))
-  $('#chips').innerHTML = EXAMPLES.filter(b => !taken.has(b))
+  // the page look like canned data. Only the rows actually RENDERED can
+  // collide, so dedupe against those. Deduping against the whole history
+  // emptied this row completely once every example had been scanned at least
+  // once, leaving its label standing over nothing.
+  const taken = new Set(shown.map(s => s.brand))
+  const chips = EXAMPLES.filter(b => !taken.has(b))
+  $('#chips').innerHTML = chips
     .map(b => `<button class="chip" type="button">${esc(b)}</button>`).join('')
+  // A heading with an empty row under it reads as a broken page, not a spare one.
+  $('#tryblock').style.display = chips.length ? '' : 'none'
   bindChips()
 
-  if (recent.length){
+  if (shown.length){
     $('#recent').innerHTML =
       '<span class="rlabel">Earlier scans &mdash; open instantly, then re-run live</span>' +
-      recent.slice(0, 6).map(s =>
+      shown.map(s =>
         `<a href="?scan=${s.scanId}">${esc(s.brand)} <i>${ago(s.createdAt)}</i></a>`).join('')
   }
+
+  proofTotals(recent)
 }
+
+/** The landing page's headline numbers, summed from the same stored scans that
+ *  feed the row above. Every figure on this page traces back to a row in
+ *  Postgres - if the query fails the band keeps its dashes rather than
+ *  inventing a total. */
+function proofTotals(recent){
+  if (!recent.length) return
+  const sum = k => recent.reduce((a, s) => a + (s[k] || 0), 0)
+  countTo($('#p-scans'), recent.length)
+  countTo($('#p-cand'), sum('candidates'))
+  countTo($('#p-live'), sum('resolved'))
+  countTo($('#p-high'), sum('high'))
+}
+
+/** Both closing calls to action point back at the one input that matters. */
+function toScanBox(e){
+  if (e) e.preventDefault()
+  scrollTo({ top: 0, behavior: 'smooth' })
+  const q = $('#q')
+  q.focus({ preventScroll: true })
+  q.select()
+}
+$('#cta-scan').addEventListener('click', () => toScanBox())
+$('#f-top').addEventListener('click', toScanBox)
 
 function bindChips(){
   document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {

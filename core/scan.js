@@ -261,11 +261,20 @@ export async function runScan(input, opts = {}) {
   // some of them throttled - and those are exactly the ones serving clones. Two
   // consecutive walmart.com scans returned 0 and then 2 high-risk purely from
   // this. Retried gently, one pass, so a scan converges instead of drifting.
-  const noAnswer = findings.filter((f) => f.httpStatus === null && f.ips?.length)
+  // Bounded, and prioritised. Retrying EVERY non-responder is a bad trade: on a
+  // well-policed brand ~90% of lookalikes resolve but serve nothing, so a
+  // walmart.com scan retried 185 dead hosts, recovered 0-9, and added 90s.
+  // Candidate index is tier order, so the lowest indices are the exact-brand and
+  // combosquat domains - the ones actually worth a second attempt.
+  const RETRY_CAP = 40
+  const noAnswer = findings
+    .filter((f) => f.httpStatus === null && f.ips?.length)
+    .sort((a, b) => (a.i ?? 0) - (b.i ?? 0))
+    .slice(0, RETRY_CAP)
   let recovered = 0
   if (noAnswer.length) {
     onEvent({ type: 'http_retry', count: noAnswer.length })
-    await pool(noAnswer, 10, async (f) => {
+    await pool(noAnswer, 20, async (f) => {
       const { prof } = await probe(f.domain)
       if (!prof?.status) return
       f.httpStatus = prof.status
