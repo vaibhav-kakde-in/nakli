@@ -1,0 +1,59 @@
+# Nakli - build & deploy pipeline
+#
+# Monorepo: the whole repo is deployed to /var/www and `start` points at the
+# service's entrypoint. Node resolves node_modules by walking up from the
+# entrypoint, so per-app installs work without any deployFiles path juggling.
+
+zerops:
+  # ---------------------------------------------------------------- api
+  - setup: api
+    build:
+      base: nodejs@22
+      buildCommands:
+        - npm install --omit=dev --prefix api
+      deployFiles: ./
+      cache:
+        - api/node_modules
+    run:
+      base: nodejs@22
+      ports:
+        - port: 3000
+          httpSupport: true
+      start: node api/index.js
+      healthCheck:
+        httpGet:
+          port: 3000
+          path: /health
+        execPeriod: 10
+        failureTimeout: 60
+
+  # -------------------------------------------------------------- probe
+  # No ports: pulls work off NATS, never serves HTTP.
+  - setup: probe
+    build:
+      base: nodejs@22
+      buildCommands:
+        - npm install --omit=dev --prefix probe
+      deployFiles: ./
+      cache:
+        - probe/node_modules
+    run:
+      base: nodejs@22
+      start: node probe/index.js
+
+  # ---------------------------------------------------------------- web
+  - setup: web
+    build:
+      base: nodejs@22
+      buildCommands:
+        - npm install --prefix web
+        - npm run build --prefix web
+      deployFiles: ./
+      cache:
+        - web/node_modules
+    run:
+      base: nodejs@22
+      ports:
+        - port: 3000
+          httpSupport: true
+      start: npm run start --prefix web
