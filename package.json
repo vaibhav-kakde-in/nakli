@@ -1,0 +1,13 @@
+{
+  "name": "nakli",
+  "private": true,
+  "type": "module",
+  "description": "Finds the domains pretending to be you.",
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.6.14",
+    "nats": "^2.29.0",
+    "pg": "^8.13.1",
+    "undici": "^7.2.0"
+  }
+}

@@ -1,9 +1,0 @@
-{
-  "name": "nakli-api",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "@hono/node-server": "^1.13.7",
-    "hono": "^4.6.14"
-  }
-}
