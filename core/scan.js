@@ -84,14 +84,33 @@ export async function runScan(input, opts = {}) {
   }
 
   // --- baseline: what the real brand looks like ---
-  const baseRaw = await fetchProfile(origin, { patient: true })
+  //
+  // EVERY similarity score is measured against this one fetch. When it fails,
+  // titleSimilarity and bodySimilarity are 0 for every candidate and the scan
+  // confidently reports zero high-risk domains for a brand riddled with clones.
+  // A paypal.com run did exactly that. So: retry, and if it still fails, say so
+  // loudly rather than publishing a clean-looking wrong answer.
+  let baseRaw = {}
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    baseRaw = await fetchProfile(origin, { patient: true })
+    if (baseRaw.title || baseRaw.text) break
+    if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1200))
+  }
   const baseline = {
     name,
     title: baseRaw.title ?? null,
     text: baseRaw.text ?? '',
     favicon: baseRaw.favicon ?? null,
   }
-  onEvent({ type: 'baseline', baseline: { title: baseline.title, favicon: baseline.favicon } })
+  const baselineOk = !!(baseline.title || baseline.text)
+  if (!baselineOk) {
+    console.warn(`[scan] baseline unreachable for ${origin} - similarity scoring disabled`)
+  }
+  onEvent({
+    type: 'baseline',
+    ok: baselineOk,
+    baseline: { title: baseline.title, favicon: baseline.favicon },
+  })
 
   // --- stage 1: DNS, in two passes ---
   //
@@ -255,6 +274,7 @@ export async function runScan(input, opts = {}) {
     probedLocally: live.length - viaWorker,
     cacheHits: cached.size,
     cacheEnabled: cacheEnabled(),
+    baselineOk,
     evidenceArchived: findings.filter((f) => f.evidenceKey).length,
   }
   if (scanId && evidenceEnabled()) {
