@@ -56,6 +56,14 @@ body.run .nav{display:none}
 
 /* ---------- hero ---------- */
 .hero{padding:72px 0 40px;text-align:center}
+/* Credibility line above the headline. Not a link: half of it ("public data")
+   has no destination, and a pill that navigates somewhere ambiguous is worse
+   than one that just states a fact. Zerops is linked in the footer. */
+.eyebrow{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line);
+  padding:6px 15px;margin-bottom:24px;font:500 11px 'Space Grotesk',sans-serif;
+  letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+.eyebrow i{font-style:normal;color:#cfcfc9}
+body.run .eyebrow{display:none}
 h1{font-size:clamp(38px,7.4vw,86px);font-weight:400;line-height:1;letter-spacing:-1.5px}
 .sub{color:var(--muted);margin-top:18px;font-size:clamp(15px,2vw,19px)}
 form{display:flex;justify-content:center;margin:38px auto 0;max-width:640px}
@@ -385,8 +393,9 @@ footer a:hover{color:var(--pink)}
    already transition font-size and padding for the run-collapse, and folding
    opacity/transform into that same transition made the collapse look broken. */
 @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
-.js-motion .hero>h1,.js-motion .hero>.sub,.js-motion .hero>form{
+.js-motion .hero>.eyebrow,.js-motion .hero>h1,.js-motion .hero>.sub,.js-motion .hero>form{
   animation:rise .42s cubic-bezier(.2,.7,.3,1) both}
+.js-motion .hero>.eyebrow{animation-delay:0s}
 .js-motion .hero>h1{animation-delay:.05s}
 .js-motion .hero>.sub{animation-delay:.13s}
 .js-motion .hero>form{animation-delay:.21s}
@@ -439,7 +448,7 @@ footer a:hover{color:var(--pink)}
   }
   .js-motion .reveal{opacity:1;transform:none}
   .js-motion .step::before{transform:scaleX(1)}
-  .js-motion .hero>h1,.js-motion .hero>.sub,.js-motion .hero>form,
+  .js-motion .hero>.eyebrow,.js-motion .hero>h1,.js-motion .hero>.sub,.js-motion .hero>form,
   .js-motion #chips.pop,.js-motion #recent.pop{animation:none}
   .js-motion .example.in mark{animation:none}
 }
@@ -462,6 +471,7 @@ footer a:hover{color:var(--pink)}
 
 <div class="wrap">
   <section class="hero">
+    <div class="eyebrow">Powered by <i>Zerops</i> and <i>public data</i></div>
     <h1>Finds the domains<br>pretending to be you.</h1>
     <p class="sub">Type a brand. In seconds, see every lookalike that exists right now &mdash; ranked, with evidence.</p>
     <form id="f" autocomplete="off">
