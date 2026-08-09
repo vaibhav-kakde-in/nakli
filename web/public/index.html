@@ -74,6 +74,16 @@ body.run .sub,body.run .chips{display:none}
 .vtext{font-size:clamp(15px,2.6vw,24px);letter-spacing:.02em;margin-top:6px}
 .vtext b{font-weight:500}
 
+.saved{display:none;margin:16px auto 0;max-width:660px;border:1px solid var(--line);
+  background:var(--surface);padding:12px 16px;text-align:left;
+  display:none;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+.saved.on{display:flex}
+.saved .lbl{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--med)}
+.saved .when{font:400 13px 'Space Mono',monospace;color:var(--ink)}
+.saved .when b{font-weight:400;color:var(--med)}
+.saved button{background:0;border:1px solid var(--pink);color:var(--pink);font:400 11.5px 'Space Grotesk';
+  letter-spacing:.1em;padding:7px 14px;text-transform:uppercase;cursor:pointer}
+.saved button:hover{background:var(--pink);color:#000}
 .warn{display:none;margin:14px auto 0;max-width:640px;border:1px solid var(--high);
   background:rgba(220,52,30,.1);color:#ffb3a6;font-size:13px;padding:10px 14px;text-align:left}
 .warn.on{display:block}
@@ -167,7 +177,27 @@ body.run #recent{display:none}
 .results{margin:34px 0 60px;display:none}
 .results.on{display:block}
 .filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.filters button{background:0;border:1px solid var(--line);color:var(--muted);font:400 12px 'Space Grotesk';letter-spacing:.1em;padding:7px 13px;text-transform:uppercase}
+.filters button[data-f]{
+  background:var(--surface); border:1px solid #55554f; color:var(--ink);
+  font:500 13px 'Space Grotesk'; letter-spacing:.12em; padding:11px 20px;
+  text-transform:uppercase; cursor:pointer; display:inline-flex; align-items:center; gap:10px;
+}
+.filters button[data-f] b{
+  font-weight:400; font-family:'Space Mono',monospace; font-size:15px; line-height:1;
+}
+.filters button[data-f=high]   b{color:var(--high)}
+.filters button[data-f=medium] b{color:var(--med)}
+.filters button[data-f=low]    b{color:#a5a59e}
+/* Selected bands carry their severity colour on the border, so the control
+   reads at a glance instead of relying on a dim/bright difference alone. */
+.filters button[data-f=high][aria-pressed=true]  {border-color:var(--high); box-shadow:inset 0 -2px 0 var(--high)}
+.filters button[data-f=medium][aria-pressed=true]{border-color:var(--med);  box-shadow:inset 0 -2px 0 var(--med)}
+.filters button[data-f=low][aria-pressed=true]   {border-color:#a5a59e;     box-shadow:inset 0 -2px 0 #a5a59e}
+.filters button[data-f][aria-pressed=false]{
+  background:0; border-color:#3a3a37; color:#6f6f6a;
+}
+.filters button[data-f][aria-pressed=false] b{color:#6f6f6a}
+.filters button[data-f]:hover{border-color:var(--ink)}
 .filters button[aria-pressed=true]{border-color:var(--pink);color:var(--pink)}
 .row{border:1px solid var(--line);border-bottom:0;background:var(--surface);display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:14px;padding:13px 16px;cursor:pointer}
 .row:last-of-type{border-bottom:1px solid var(--line)}
@@ -224,6 +254,7 @@ footer a{color:var(--muted)}
   <section class="verdict" id="verdict">
     <div class="vnum" id="vnum">0</div>
     <div class="vtext" id="vtext"></div>
+    <div class="saved" id="savednote"></div>
     <div class="warn" id="warn"></div>
     <div class="share" id="share"></div>
   </section>
@@ -256,9 +287,9 @@ footer a{color:var(--muted)}
 
   <section class="results" id="results">
     <div class="filters">
-      <button data-f="high" aria-pressed="true">high</button>
-      <button data-f="medium" aria-pressed="true">medium</button>
-      <button data-f="low" aria-pressed="false">low</button>
+      <button data-f="high" aria-pressed="true">high <b id="c-high">0</b></button>
+      <button data-f="medium" aria-pressed="true">medium <b id="c-medium">0</b></button>
+      <button data-f="low" aria-pressed="false">low <b id="c-low">0</b></button>
       <span class="exports" id="exports"></span>
     </div>
     <div id="rows"></div>
@@ -277,7 +308,7 @@ footer a{color:var(--muted)}
 const $ = s => document.querySelector(s)
 const grid = $('#grid'), rows = $('#rows'), tip = $('#tip')
 let domains = [], cells = [], findings = [], es = null, t0 = 0, timer = null, currentScanId = null
-let checked = 0, probeDone = 0, probeTotal = 0, baselineFailed = false
+let checked = 0, probeDone = 0, probeTotal = 0, baselineFailed = false, retryTotal = 0, retryDone = 0
 
 /** One line of real, current activity. Without it the DNS stage looks frozen
  *  even though 1800 lookups are landing behind it. */
@@ -358,6 +389,14 @@ function paintCells(str, animate = true){
 }
 
 function render(){
+  // Counts reflect the active category filter, so they always describe the list
+  // the buttons are actually toggling.
+  const scope = threatFilter ? findings.filter(f => f.threat === threatFilter) : findings
+  for (const b of ['high','medium','low']) {
+    const el = $('#c-' + b)
+    if (el) el.textContent = scope.filter(f => f.band === b).length
+  }
+
   const list = findings
     .filter(f => show[f.band] && (!threatFilter || f.threat === threatFilter))
     .sort((a,b) => b.score - a.score)
@@ -511,9 +550,13 @@ async function openSaved(id){
     currentScanId = id
 
     if (d.createdAt){
-      $('#share').innerHTML =
-        `<div class="rescan"><button id="rescan">Re-scan live now</button>` +
-        `<span>this result was captured ${esc(ago(d.createdAt))} &mdash; run it again to watch it happen</span></div>`
+      const n = $('#savednote')
+      n.innerHTML =
+        `<span class="lbl">Saved result</span>` +
+        `<span class="when">captured <b>${esc(ago(d.createdAt))}</b></span>` +
+        `<button id="rescan">Re-scan live now</button>`
+      n.classList.add('on')
+      n.title = new Date(d.createdAt).toLocaleString()
       $('#rescan').onclick = () => { history.replaceState({}, '', '/'); start(d.stats.origin) }
     }
     if (d.domains?.length && d.cells){
@@ -535,7 +578,8 @@ function start(brand){
   es?.close(); clearInterval(timer)
   findings = []; rows.innerHTML = ''; currentScanId = null; $('#share').innerHTML = ''
   threatFilter = null; $('#summary').classList.remove('on')
-  checked = 0; probeDone = 0; probeTotal = 0; baselineFailed = false
+  $('#savednote').classList.remove('on'); $('#savednote').innerHTML = ''
+  checked = 0; probeDone = 0; probeTotal = 0; baselineFailed = false; retryTotal = 0; retryDone = 0
   $('#bar').style.width = '0%'; tick('', 'live', 'generating candidate domains...')
   $('#verdict').classList.remove('on')
   ;['#stats','#gridwrap','#results'].forEach(s => $(s).classList.add('on'))
@@ -574,8 +618,13 @@ function start(brand){
       countTo($('#s-live'), cells.filter(c => c.dataset.s === 'live').length, 200)
     }
     else if (e.type === 'dns_retry'){
-      $('#stage').textContent = `re-checking ${e.count} that timed out`
-      tick('', 'live', `${e.count} lookups were rate-limited - retrying rather than calling them dead`)
+      // Pass 2 runs at concurrency 15 instead of 80, so it can take ~30s for
+      // ~2% of the work. Tracked against the whole 1800 that reads as a hang,
+      // so the bar switches to measuring the retry set on its own.
+      retryTotal = e.count; retryDone = 0
+      $('#bar').style.width = '0%'
+      $('#stage').textContent = `re-checking ${e.count} timed-out lookups \u00b7 0 / ${e.count}`
+      tick('', 'medium', `${e.count} lookups were rate-limited \u2014 retrying slowly rather than calling them dead`)
     }
     else if (e.type === 'cache_hits'){
       tick('', 'live', `${fmt(e.hits)} of ${fmt(e.total)} answered from cache`)
@@ -583,7 +632,7 @@ function start(brand){
     else if (e.type === 'dns_done'){
       countTo($('#s-live'), e.live); countTo($('#s-filt'), e.wildcardFiltered)
       $('#bar').style.width = '0%'
-      probeTotal = e.live; probeDone = 0
+      probeTotal = e.live; probeDone = 0; retryTotal = 0
       $('#stage').textContent = `probing ${e.live} live hosts`
     }
     else if (e.type === 'finding'){
@@ -628,6 +677,12 @@ function finish(st, brand, restored=false){
   $('#vtext').innerHTML = st.high
     ? `domains are impersonating <b>${esc(brand)}</b>`
     : `no high-risk impersonation found for <b>${esc(brand)}</b>`
+  if (restored && currentScanId){
+    $('#exports').innerHTML =
+      `<a href="/api/scan/${currentScanId}/export?format=csv">csv</a>` +
+      `<a href="/api/scan/${currentScanId}/export?format=json">json</a>`
+  }
+
   const w = $('#warn')
   if (baselineFailed || st.baselineOk === false){
     w.classList.add('on')
@@ -636,7 +691,9 @@ function finish(st, brand, restored=false){
   } else w.classList.remove('on')
 
   renderSummary(); render()
-  if (currentScanId){
+  // A restored scan already shows its own "saved result" badge; the permalink
+  // block is for a scan the user just ran.
+  if (currentScanId && !restored){
     $('#exports').innerHTML =
       `<a href="/api/scan/${currentScanId}/export?format=csv">csv</a>` +
       `<a href="/api/scan/${currentScanId}/export?format=json">json</a>`
