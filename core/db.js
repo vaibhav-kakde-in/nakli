@@ -62,8 +62,13 @@ create table if not exists findings (
   body_sim      real,
   has_login     boolean,
   reasons       text[],
+  -- threat classification, homograph analysis and the evidence key live here.
+  -- Without them a restored scan silently mislabels every finding: an active
+  -- clone came back as "Dormant" because the column simply did not exist.
+  extra         jsonb,
   primary key (scan_id, domain)
 );
+alter table findings add column if not exists extra jsonb;
 create index if not exists findings_by_score on findings (scan_id, score desc);
 create index if not exists scans_recent     on scans (created_at desc);
 `
@@ -98,12 +103,19 @@ export async function saveScan(id, brand, { stats, baseline, findings }) {
     for (const f of findings.filter((x) => x.band !== 'low')) {
       await client.query(
         `insert into findings (scan_id, domain, score, band, ips, mx, http_status,
-                               title, favicon_match, title_sim, body_sim, has_login, reasons)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                               title, favicon_match, title_sim, body_sim, has_login,
+                               reasons, extra)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
          on conflict (scan_id, domain) do nothing`,
         [id, f.domain, f.score, f.band, f.ips ?? [], f.mx ?? [], f.httpStatus,
          f.title, f.faviconMatch, f.titleSimilarity, f.bodySimilarity,
-         f.hasLoginForm, f.reasons ?? []]
+         f.hasLoginForm, f.reasons ?? [],
+         JSON.stringify({
+           threat: f.threat ?? null,
+           homograph: f.homograph ?? null,
+           homographNote: f.homographNote ?? null,
+           evidenceKey: f.evidenceKey ?? null,
+         })]
       )
     }
     await client.query('commit')
@@ -142,6 +154,10 @@ export async function loadScan(id) {
         httpStatus: r.http_status, title: r.title, faviconMatch: r.favicon_match,
         titleSimilarity: r.title_sim, bodySimilarity: r.body_sim,
         hasLoginForm: r.has_login, reasons: r.reasons,
+        threat: r.extra?.threat ?? null,
+        homograph: r.extra?.homograph ?? null,
+        homographNote: r.extra?.homographNote ?? null,
+        evidenceKey: r.extra?.evidenceKey ?? null,
       })),
     }
   } catch (e) {
