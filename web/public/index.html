@@ -292,6 +292,24 @@ body.run .landing{display:none}
 .step ul{list-style:none;margin-top:13px;display:flex;flex-wrap:wrap;gap:6px}
 .step li{font:400 11.5px 'Space Mono',monospace;color:#b8b8b2;border:1px solid var(--line);padding:4px 9px}
 
+/* Each step carries a small artefact from the real pipeline rather than another
+   paragraph. The candidates and their tier positions come from permute.js, and
+   the point values from score.js - the tool's own output argues better than
+   prose about the tool. */
+.viz{margin-top:15px;border:1px solid var(--line);background:var(--surface);padding:13px 14px;
+  font:400 12px/1.7 'Space Mono',monospace;overflow-x:auto}
+.viz .r{display:flex;justify-content:space-between;gap:14px;white-space:nowrap}
+.viz .r i{font-style:normal;color:var(--muted)}
+.viz .head{color:var(--ink);margin-bottom:4px}
+.viz .arm{color:#8a8a85}
+.viz .d{color:#cfcfc9}
+.viz .more{color:var(--muted)}
+.viz mark{background:rgba(220,52,30,.18);color:var(--high);padding:0 2px}
+/* The total is a verdict about a domain, so it is the one thing here in red. */
+.viz .sum{display:flex;justify-content:space-between;gap:14px;align-items:baseline;
+  border-top:1px solid var(--line);margin-top:9px;padding-top:9px;color:#cfcfc9;white-space:nowrap}
+.viz .sum b{font-weight:400;color:var(--high);font-size:16px;font-family:'Space Grotesk',sans-serif}
+
 /* what it catches - labels and copy come straight from classify.js */
 .tgrid{display:grid;grid-template-columns:repeat(4,1fr);margin-top:38px;
   border:1px solid var(--line);border-right:0;border-bottom:0}
@@ -526,28 +544,46 @@ footer a:hover{color:var(--pink)}
         <div class="step">
           <div class="num">01</div>
           <h3>Permute</h3>
-          <p>One brand becomes roughly 1,800 candidate domains &mdash; character swaps, insertions and
-            omissions, homoglyph substitutions, phishing-keyword combos, and your exact name on every
-            common TLD. Candidates are emitted in priority tiers, so the highest-signal names are
-            always reached even when the limit cuts the tail.</p>
+          <p>One brand becomes ~1,800 candidates, emitted in priority tiers so the strongest signals
+            are always reached first.</p>
+          <div class="viz">
+            <div class="head">paypal.com</div>
+            <div class="r"><span><span class="arm">&#9500;</span> <span class="d">paypal.net</span></span><i>tier 1</i></div>
+            <div class="r"><span><span class="arm">&#9500;</span> <span class="d">paypal.co</span></span><i>tier 1</i></div>
+            <div class="r"><span><span class="arm">&#9500;</span> <span class="d">paypal-login.com</span></span><i>tier 2</i></div>
+            <div class="r"><span><span class="arm">&#9500;</span> <span class="d">p<mark>&#1072;</mark>ypal.com</span></span><i>homoglyph</i></div>
+            <div class="r"><span><span class="arm">&#9492;</span> <span class="more">&hellip;1,796 more</span></span><i></i></div>
+          </div>
           <ul><li>typos</li><li>homoglyphs</li><li>combosquats</li><li>TLD swaps</li></ul>
         </div>
         <div class="step">
           <div class="num">02</div>
           <h3>Probe</h3>
-          <p>Everything gets a DNS lookup, and whatever resolves is fetched over https and http at once
-            with the losing scheme aborted. Registries that resolve every name are caught by a
-            two-probe wildcard calibration and thrown out, so you are not handed hundreds of domains
-            that do not exist.</p>
-          <ul><li>DNS</li><li>HTTP</li><li>MX</li><li>favicon hash</li><li>wildcard calibration</li></ul>
+          <p>Everything gets DNS. Whatever resolves is raced over both schemes. Wildcard registries are
+            calibrated out and discarded.</p>
+          <div class="viz">
+            <div class="head">every resolving candidate</div>
+            <div class="r"><span class="d">DNS</span><i>A / AAAA</i></div>
+            <div class="r"><span class="d">HTTP</span><i>https + http, raced</i></div>
+            <div class="r"><span class="d">MX</span><i>can it receive mail</i></div>
+            <div class="r"><span class="d">favicon</span><i>hash vs baseline</i></div>
+            <div class="r"><span class="d">wildcard</span><i>2 random probes</i></div>
+          </div>
         </div>
         <div class="step">
           <div class="num">03</div>
           <h3>Score &amp; classify</h3>
-          <p>Signals add up against a live baseline of your real site: title and body similarity,
-            favicon match, a password field, MX records. The total ranks the finding, a classifier
-            names the pattern behind it, and the page as we saw it is archived.</p>
-          <ul><li>additive score</li><li>stated reasons</li><li>threat class</li><li>evidence capture</li></ul>
+          <p>Signals add up against a live baseline of your real site, and every point states its
+            reason.</p>
+          <div class="viz">
+            <div class="r"><span class="d">resolves</span><i>+15</i></div>
+            <div class="r"><span class="d">has MX (2)</span><i>+12</i></div>
+            <div class="r"><span class="d">serves HTTP 200</span><i>+15</i></div>
+            <div class="r"><span class="d">password field present</span><i>+25</i></div>
+            <div class="r"><span class="d">favicon identical to brand</span><i>+30</i></div>
+            <div class="sum"><span>p<mark>&#1072;</mark>ypal.com</span><b>97</b></div>
+          </div>
+          <ul><li>threat class</li><li>evidence capture</li></ul>
         </div>
       </div>
     </div>
@@ -557,9 +593,8 @@ footer a:hover{color:var(--pink)}
     <div class="wrap">
       <div class="kicker">What it catches</div>
       <h2>A score ranks. A class tells you what to do about it.</h2>
-      <p class="lede">A cloned login page steals credentials today. A registered domain with MX records
-        and no website is waiting to send mail as you. A parked domain is somebody speculating. Those
-        are three different problems, so nakli names them rather than handing you one number.</p>
+      <p class="lede">A cloned login page, a mail-capable domain with no website, and a parked
+        registration are three different problems. So nakli names them.</p>
 
       <div class="tgrid">
         <div class="t"><h3>Homograph attack</h3><p>Visually indistinguishable from your domain. No user can catch this by reading it.</p></div>
@@ -582,12 +617,14 @@ footer a:hover{color:var(--pink)}
           <dl>
             <dt>Punycode</dt><dd>xn--pypal-4ve.com</dd>
             <dt>Confusable</dt><dd>U+0430 CYRILLIC SMALL LETTER A &rarr; U+0061 LATIN SMALL LETTER A</dd>
-            <dt>Why it scored</dt><dd>resolves; serves HTTP 200; favicon identical to brand; password field present</dd>
+            <!-- These five reasons carry the weights in score.js and total exactly 97.
+                 Without the MX line they summed to 85 against a headline of 97. -->
+            <dt>Why it scored</dt><dd>resolves; has MX (2) - can send mail; serves HTTP 200; favicon identical to brand; password field present</dd>
           </dl>
         </div>
       </div>
-      <p class="cap">An illustrative finding, laid out exactly as the results table renders it. The
-        punycode and codepoint are real &mdash; that is what this substitution actually encodes to.</p>
+      <p class="cap">An illustrative finding, rendered exactly as the results table does. The punycode,
+        codepoint and point values are real.</p>
     </div>
   </section>
 
@@ -1008,9 +1045,9 @@ function countProof(){
 
 /** Both closing calls to action point back at the one input that matters.
  *
- *  Focus BEFORE the scroll, never after: moving focus cancels an in-flight
- *  smooth scroll, so the original order left the button doing nothing but put a
- *  caret in a box three thousand pixels off screen. */
+ *  Focus first, scroll last. `focus` takes preventScroll but `select` does not,
+ *  and either can cancel an in-flight smooth scroll, so the scroll is issued
+ *  after them rather than racing them. */
 function toScanBox(e){
   if (e) e.preventDefault()
   const q = $('#q')

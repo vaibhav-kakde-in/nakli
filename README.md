@@ -12,11 +12,11 @@
 
 No sign-up. Type a brand, or click one of the examples.
 
-![nakli result for paypal.com](docs/result.jpg)
+![nakli scanning stripe.com](docs/result.jpg)
 
-*Every square is one real DNS lookup — 1,800 of them, streaming live. Red squares are
-active impersonators. `paypal.com`: **18 high risk**, and **8 domains visually
-indistinguishable from the real one**.*
+*A scan in progress. Every square is one real DNS lookup — 1,800 of them — and the
+breakdown fills in as findings land. `stripe.com`: **12 domains serving a copy of
+Stripe's page**, 45 able to send mail as Stripe, 3 visually indistinguishable from it.*
 
 ---
 
@@ -55,9 +55,12 @@ brand: "paypal.com"
   ↓  archive                the page as we saw it, to object storage
 ```
 
-![scan in progress](docs/scanning.jpg)
+![paypal.com result](docs/verdict.jpg)
 
-*Mid-scan: the DNS stage reporting real progress and the domain it is checking.*
+![the candidate grid and threat breakdown](docs/grid.jpg)
+
+*`paypal.com`: 1,800 candidates, 231 live hosts, 18 high risk — and 8 domains a
+human eye cannot tell apart from the real one.*
 
 **The funnel is the trick.** 1,800 candidates collapse to ~250 live hosts, so the expensive
 HTTP work only touches ~14% of the set. That is what keeps a scan usable.
