@@ -33,14 +33,20 @@ async function pool(items, limit, worker) {
 export async function runScan(input, opts = {}) {
   const {
     limit = 4000,
-    // 60, not 200. Public resolvers silently drop answers when hammered:
-    // at 200-wide a scan of hdfcbank.com found 82 live hosts and ZERO
-    // high-risk, missing hdfcbank.net entirely. At 60 the same scan finds
-    // hdfcbank.net at score 97 and is ~10x faster overall, because the
-    // dropped queries were being retried on timeout. More concurrency was
-    // strictly worse on both accuracy and latency.
+
+    // DNS stays deliberately modest. Public resolvers silently drop answers
+    // when hammered, and a dropped answer is indistinguishable from "no such
+    // domain": at 200-wide, a scan of hdfcbank.com found ZERO high-risk and
+    // missed hdfcbank.net entirely. Going wider is worse on BOTH accuracy and
+    // latency, because the losses come back as timeouts that must be retried.
     dnsConcurrency = 80,
-    httpConcurrency = 50,
+
+    // HTTP can go much wider than DNS - different bottleneck entirely. It was
+    // pinned at 50 only while the connection-pool leak in fetchProfile made
+    // concurrency actively harmful. With losers aborted properly, sockets are
+    // released promptly and this scales; a 249-host PayPal scan spent 85s here
+    // at 50.
+    httpConcurrency = 150,
     onEvent = () => {},
   } = opts
 
