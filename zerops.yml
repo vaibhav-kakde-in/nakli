@@ -22,6 +22,14 @@ zerops:
         - port: 3000
           httpSupport: true
       start: node api/index.js
+      envVariables:
+        # ${db_*} references the postgresql service by hostname; discrete parts
+        # rather than the connection string so there is nothing to mis-parse
+        DB_HOST: ${db_hostname}
+        DB_PORT: ${db_port}
+        DB_USER: ${db_user}
+        DB_PASSWORD: ${db_password}
+        DB_NAME: ${db_dbName}
       # execPeriod/failureTimeout are time.Duration - bare ints are rejected
       healthCheck:
         httpGet:

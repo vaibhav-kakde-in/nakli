@@ -4,6 +4,7 @@ import { cors } from 'hono/cors'
 import { randomUUID } from 'node:crypto'
 import { runScan } from '../core/scan.js'
 import { splitDomain } from '../core/permute.js'
+import { initDb, saveScan, loadScan, recentScans, dbHealth, dbEnabled } from '../core/db.js'
 
 const app = new Hono()
 app.use('/api/*', cors())
@@ -60,9 +61,11 @@ function startJob(origin, limit) {
       else if (ev.type === 'finding') job.progress.found = (job.progress.found ?? 0) + 1
     },
   })
-    .then((result) => {
+    .then(async (result) => {
       job.result = result
       job.status = 'done'
+      // Persistence must never be able to fail a scan the user already has.
+      saveScan(id, origin, result).catch((e) => console.error('[db] save:', e.message))
     })
     .catch((err) => {
       job.error = String(err?.message ?? err)
@@ -77,6 +80,8 @@ function startJob(origin, limit) {
 }
 
 app.get('/health', (c) => c.json({ ok: true }))
+app.get('/api/health', async (c) => c.json({ ok: true, db: await dbHealth() }))
+app.get('/api/recent', async (c) => c.json({ scans: await recentScans(12) }))
 
 app.get('/', (c) =>
   c.json({
@@ -178,9 +183,14 @@ app.get('/api/scan/stream', (c) => {
   })
 })
 
-app.get('/api/scan/:id', (c) => {
+app.get('/api/scan/:id', async (c) => {
   const job = jobs.get(c.req.param('id'))
-  if (!job) return c.json({ error: 'unknown scan id' }, 404)
+  // Jobs are reaped after 30 minutes; a persisted scan outlives them, which is
+  // what makes a shared link keep working.
+  if (!job) {
+    const saved = await loadScan(c.req.param('id'))
+    return saved ? c.json(saved) : c.json({ error: 'unknown scan id' }, 404)
+  }
   if (job.status === 'error') return c.json({ scanId: job.id, status: 'error', error: job.error }, 500)
   if (job.status === 'running') {
     return c.json({
@@ -194,6 +204,8 @@ app.get('/api/scan/:id', (c) => {
   return c.json({ scanId: job.id, status: 'done', ...job.result })
 })
 
+
+await initDb()
 
 const port = Number(process.env.PORT) || 3000
 serve({ fetch: app.fetch, port, hostname: '::' })
