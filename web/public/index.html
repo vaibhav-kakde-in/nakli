@@ -29,7 +29,8 @@ body{
 /* ---------- header ---------- */
 header{border-bottom:1px solid var(--line)}
 .hrow{display:flex;align-items:center;justify-content:space-between;height:64px}
-.brand{font-size:26px;font-weight:700;letter-spacing:-.5px}
+.brand{font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--ink);text-decoration:none;display:inline-block}
+.brand:hover em{opacity:.7}
 .brand em{font-style:normal;color:var(--pink)}
 .ghost{color:var(--muted);text-decoration:none;font-size:14px;border:1px solid var(--line);padding:7px 14px}
 .ghost:hover{color:var(--ink);border-color:var(--ink)}
@@ -163,7 +164,7 @@ footer a{color:var(--muted)}
 </head>
 <body>
 <header><div class="wrap hrow">
-  <div class="brand">nakli<em>.</em></div>
+  <a class="brand" href="/">nakli<em>.</em></a>
   <a class="ghost" href="https://github.com/vaibhav-kakde-in/nakli" target="_blank" rel="noopener">source</a>
 </div></header>
 
@@ -277,6 +278,35 @@ grid.addEventListener('mousemove', e => {
 })
 grid.addEventListener('mouseleave', () => tip.style.opacity = 0)
 
+const CELL_MAP = { d:'dead', w:'wildcard', l:'live', o:'low', m:'medium', h:'high' }
+
+/** Paint the grid from a stored cell string. `animate` replays the fill so a
+ *  shared link shows the scan happening rather than a static picture - the
+ *  states are the real recorded ones, only the timing is reconstructed. */
+function paintCells(str, animate = true){
+  if (!str || !cells.length) return
+  const total = Math.min(str.length, cells.length)
+  if (!animate){
+    for (let i = 0; i < total; i++){
+      const st = CELL_MAP[str[i]]
+      if (st) cells[i].dataset.s = st
+    }
+    return
+  }
+  const DURATION = 1600
+  const start = performance.now()
+  let painted = 0
+  const step = now => {
+    const target = Math.floor(Math.min(1, (now - start) / DURATION) * total)
+    for (; painted < target; painted++){
+      const st = CELL_MAP[str[painted]]
+      if (st) cells[painted].dataset.s = st
+    }
+    if (painted < total) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
 function render(){
   const list = findings.filter(f => show[f.band]).sort((a,b) => b.score - a.score)
   if (!list.length){
@@ -357,6 +387,14 @@ async function openSaved(id){
     $('#q').value = d.stats.origin
     findings = d.findings || []
     currentScanId = id
+
+    if (d.domains?.length && d.cells){
+      $('#gridwrap').classList.add('on')
+      buildGrid(d.domains)
+      $('#stage').textContent = 'replay'
+      $('#elapsed').textContent = (d.stats.totalMs/1000).toFixed(1) + 's'
+      paintCells(d.cells, true)
+    }
     finish(d.stats, d.stats.origin, true)
   }catch{ /* fall through to the normal landing page */ }
 }

@@ -46,8 +46,10 @@ create table if not exists scans (
   http_ms           int,
   total_ms          int,
   baseline          jsonb,
+  cells             text,
   created_at        timestamptz not null default now()
 );
+alter table scans add column if not exists cells text;
 create table if not exists findings (
   scan_id       uuid not null references scans(id) on delete cascade,
   domain        text not null,
@@ -83,7 +85,7 @@ export async function initDb() {
   }
 }
 
-export async function saveScan(id, brand, { stats, baseline, findings }) {
+export async function saveScan(id, brand, { stats, baseline, findings, cells }) {
   if (!pool) return false
   const client = await pool.connect().catch(() => null)
   if (!client) return false
@@ -91,12 +93,13 @@ export async function saveScan(id, brand, { stats, baseline, findings }) {
     await client.query('begin')
     await client.query(
       `insert into scans (id, brand, candidates, resolved, wildcard_filtered,
-                          high, medium, low, dns_ms, http_ms, total_ms, baseline)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                          high, medium, low, dns_ms, http_ms, total_ms, baseline, cells)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        on conflict (id) do nothing`,
       [id, brand, stats.candidates, stats.resolved, stats.wildcardFiltered,
        stats.high, stats.medium, stats.low, stats.dnsMs, stats.httpMs, stats.totalMs,
-       JSON.stringify({ title: baseline?.title ?? null, favicon: baseline?.favicon ?? null })]
+       JSON.stringify({ title: baseline?.title ?? null, favicon: baseline?.favicon ?? null }),
+       cells ?? null]
     )
     // Only findings worth revisiting are stored; the low band is mostly parked
     // domains and would triple the row count for no analytical value.
@@ -149,6 +152,7 @@ export async function loadScan(id) {
         low: s.low, dnsMs: s.dns_ms, httpMs: s.http_ms, totalMs: s.total_ms,
       },
       baseline: s.baseline,
+      cells: s.cells ?? null,
       findings: f.map((r) => ({
         domain: r.domain, score: r.score, band: r.band, ips: r.ips, mx: r.mx,
         httpStatus: r.http_status, title: r.title, faviconMatch: r.favicon_match,

@@ -116,9 +116,15 @@ export async function runScan(input, opts = {}) {
     batch = []
   }
   const mark = (i, state) => {
+    cellState[i] = CODE[state] ?? '.'
     batch.push([i, state])
     if (batch.length >= 25) flush()
   }
+
+  // One character per candidate, in candidate order. 1800 bytes, and it lets a
+  // stored scan redraw its real grid later instead of a fabricated one.
+  const cellState = new Array(candidates.length).fill('.')
+  const CODE = { dead: 'd', wildcard: 'w', live: 'l', low: 'o', medium: 'm', high: 'h' }
 
   const record = (domain, ips, i) => {
     if (!ips.length) return mark(i, 'dead')
@@ -219,6 +225,7 @@ export async function runScan(input, opts = {}) {
     }
     f.band = band(f.score)
     f.threat = classify(f, baseline)
+    cellState[i] = CODE[f.band] ?? 'l'
 
     if (scanId && f.band !== 'low' && prof.html) {
       f.evidenceKey = await archive(scanId, f, prof.html)
@@ -255,5 +262,5 @@ export async function runScan(input, opts = {}) {
   }
 
   onEvent({ type: 'done', stats })
-  return { stats, baseline, findings }
+  return { stats, baseline, findings, cells: cellState.join('') }
 }

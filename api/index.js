@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { randomUUID } from 'node:crypto'
 import { runScan } from '../core/scan.js'
-import { splitDomain } from '../core/permute.js'
+import { splitDomain, permute } from '../core/permute.js'
 import { initDb, saveScan, loadScan, recentScans, dbHealth, dbEnabled } from '../core/db.js'
 import { connectBus, makeBusProbe } from '../core/bus.js'
 import { initCache, cacheHealth } from '../core/cache.js'
@@ -253,7 +253,14 @@ app.get('/api/scan/:id', async (c) => {
   // what makes a shared link keep working.
   if (!job) {
     const saved = await loadScan(c.req.param('id'))
-    return saved ? c.json(saved) : c.json({ error: 'unknown scan id' }, 404)
+    if (!saved) return c.json({ error: 'unknown scan id' }, 404)
+    // permute() is a pure function of (brand, limit), so the candidate list is
+    // reproducible and never has to be stored alongside the scan.
+    if (saved.cells) {
+      const { name, tld } = splitDomain(saved.stats.origin)
+      saved.domains = permute(name, tld, saved.stats.candidates)
+    }
+    return c.json(saved)
   }
   if (job.status === 'error') return c.json({ scanId: job.id, status: 'error', error: job.error }, 500)
   if (job.status === 'running') {
