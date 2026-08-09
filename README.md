@@ -2,7 +2,9 @@
 
 > **nakli** (नकली) — Hindi for *counterfeit*.
 
-**Type your brand. In seconds, see every lookalike domain that exists right now — ranked, with evidence.**
+### **Type your brand. In seconds, see every lookalike domain that exists right now — ranked, with evidence.**
+
+No sign-up. Type a brand, or click one of the examples.
 
 | | |
 |---|---|
@@ -10,13 +12,14 @@
 | **API** | https://api-2ca4-3000.prg1.zerops.app |
 | **Example result** | [`paypal.com` — 18 high risk, replays the full grid](https://web-2ca4-3000.prg1.zerops.app/?scan=3f777bf1-eb91-4465-b53d-25cd3ba22614) |
 
-No sign-up. Type a brand, or click one of the examples.
 
-![nakli scanning stripe.com](docs/result.jpg)
+![nakli home page](docs/home.jpg)
 
-*A scan in progress. Every square is one real DNS lookup — 1,800 of them — and the
-breakdown fills in as findings land. `stripe.com`: **12 domains serving a copy of
-Stripe's page**, 45 able to send mail as Stripe, 3 visually indistinguishable from it.*
+![stripe.com result](docs/result.jpg)
+
+*`stripe.com`: 1,800 candidates checked in 54.7s, 148 live hosts, **26 high risk** —
+17 serving a copy of Stripe's page, 20 able to send mail as Stripe, 3 visually
+indistinguishable from it. Every square is one real DNS lookup.*
 
 ---
 
@@ -55,15 +58,14 @@ brand: "paypal.com"
   ↓  archive                the page as we saw it, to object storage
 ```
 
-![paypal.com result](docs/verdict.jpg)
-
-![the candidate grid and threat breakdown](docs/grid.jpg)
-
-*`paypal.com`: 1,800 candidates, 231 live hosts, 18 high risk — and 8 domains a
-human eye cannot tell apart from the real one.*
+![the three stages](docs/pipeline.jpg)
 
 **The funnel is the trick.** 1,800 candidates collapse to ~250 live hosts, so the expensive
 HTTP work only touches ~14% of the set. That is what keeps a scan usable.
+
+![ranked findings with reasons](docs/findings.jpg)
+
+*Nine active clones of Stripe, each at 97, each with its reasons stated.*
 
 ### What makes a finding
 
