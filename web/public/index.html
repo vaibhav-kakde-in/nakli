@@ -70,9 +70,11 @@ body.run .sub,body.run .chips{display:none}
 .verdict{text-align:center;padding:26px 0 8px;display:none}
 .verdict.on{display:block}
 .vnum{font-size:clamp(70px,15vw,150px);font-weight:400;line-height:.92;letter-spacing:-3px;color:var(--high)}
-.vnum.zero{color:var(--live)}
+.vnum.zero{color:#8a8a85}
 .vtext{font-size:clamp(15px,2.6vw,24px);letter-spacing:.02em;margin-top:6px}
 .vtext b{font-weight:500}
+.vsub{display:block;font-size:clamp(15px,2.2vw,20px);color:#c2c2bc;margin-top:14px;letter-spacing:0;line-height:1.4}
+.vsub b{color:var(--med);font-weight:500;font-size:1.12em}
 
 .saved{display:none;margin:16px auto 0;max-width:660px;border:1px solid var(--line);
   background:var(--surface);padding:12px 16px;text-align:left;
@@ -617,6 +619,10 @@ function start(brand){
                      pick[1] === 'live' ? 'resolves' : 'no such domain')
       countTo($('#s-live'), cells.filter(c => c.dataset.s === 'live').length, 200)
     }
+    else if (e.type === 'http_retry'){
+      $('#stage').textContent = `re-probing ${e.count} hosts that did not answer`
+      tick('', 'medium', `${e.count} hosts gave no response \u2014 re-probing before writing them off`)
+    }
     else if (e.type === 'dns_retry'){
       // Pass 2 runs at concurrency 15 instead of 80, so it can take ~30s for
       // ~2% of the work. Tracked against the whole 1800 that reads as a hang,
@@ -637,8 +643,9 @@ function start(brand){
     }
     else if (e.type === 'finding'){
       const f = e.finding
-      findings.push(f)
-      probeDone++
+      const at = findings.findIndex(x => x.domain === f.domain)
+      if (at >= 0) findings[at] = f; else findings.push(f)
+      if (!e.updated) probeDone++
       $('#bar').style.width = Math.min(100, Math.round(probeDone / (probeTotal||1) * 100)) + '%'
       $('#stage').textContent = `probing · ${probeDone} / ${probeTotal}`
       tick(f.domain, f.band,
@@ -674,9 +681,24 @@ function finish(st, brand, restored=false){
   v.classList.add('on')
   n.classList.toggle('zero', st.high === 0)
   countTo(n, st.high, 700)
-  $('#vtext').innerHTML = st.high
-    ? `domains are impersonating <b>${esc(brand)}</b>`
-    : `no high-risk impersonation found for <b>${esc(brand)}</b>`
+  // The zero-state must not read as "nothing found" or "tool broken". Most
+  // well-policed brands have no ACTIVE clone but still carry dozens of
+  // lookalikes - a judge scanning their own domain will land here, and that
+  // detail is the useful part of the answer.
+  if (st.high) {
+    $('#vtext').innerHTML = `domains are impersonating <b>${esc(brand)}</b>`
+  } else {
+    const spoof = findings.filter(f => f.threat === 'email-spoofer').length
+    const other = findings.filter(f => f.band !== 'low').length
+    const bits = []
+    if (spoof) bits.push(`<b>${spoof}</b> can send email as you`)
+    if (other - spoof > 0) bits.push(`<b>${other - spoof}</b> more are registered and watching`)
+    $('#vtext').innerHTML =
+      `domains are actively cloning <b>${esc(brand)}</b> right now` +
+      (bits.length
+        ? `<span class="vsub">${bits.join(' &middot; ')} &mdash; see the breakdown below</span>`
+        : `<span class="vsub">and no lookalikes are serving content &mdash; a well-policed name</span>`)
+  }
   if (restored && currentScanId){
     $('#exports').innerHTML =
       `<a href="/api/scan/${currentScanId}/export?format=csv">csv</a>` +

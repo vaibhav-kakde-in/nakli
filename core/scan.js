@@ -254,6 +254,40 @@ export async function runScan(input, opts = {}) {
     onEvent({ type: 'finding', finding: f })
     return f
   })
+  // --- stage 2b: retry hosts that gave no HTTP response at all ---
+  //
+  // Same lesson as DNS pass 2: a host that did not answer is UNKNOWN, not dead.
+  // Lookalikes of one brand share a CDN, so a burst of 50 concurrent probes gets
+  // some of them throttled - and those are exactly the ones serving clones. Two
+  // consecutive walmart.com scans returned 0 and then 2 high-risk purely from
+  // this. Retried gently, one pass, so a scan converges instead of drifting.
+  const noAnswer = findings.filter((f) => f.httpStatus === null && f.ips?.length)
+  let recovered = 0
+  if (noAnswer.length) {
+    onEvent({ type: 'http_retry', count: noAnswer.length })
+    await pool(noAnswer, 10, async (f) => {
+      const { prof } = await probe(f.domain)
+      if (!prof?.status) return
+      f.httpStatus = prof.status
+      f.title = prof.title ?? null
+      f.faviconSha = prof.favicon ?? null
+      f.faviconMatch = !!(baseline.favicon && prof.favicon && baseline.favicon === prof.favicon)
+      f.hasLoginForm = !!prof.login
+      f.titleSimilarity = similarity(baseline.title?.toLowerCase(), prof.title?.toLowerCase())
+      f.bodySimilarity = similarity(baseline.text?.slice(0, 2000), prof.text?.slice(0, 2000))
+      Object.assign(f, score(f, baseline))
+      if (f.homograph?.visuallyIdentical) {
+        f.score = Math.min(100, f.score + 25)
+        f.reasons.unshift('visually identical to the real domain')
+      }
+      f.band = band(f.score)
+      f.threat = classify(f, baseline)
+      cellState[f.i] = { high: 'h', medium: 'm', low: 'o' }[f.band] ?? 'l'
+      recovered++
+      onEvent({ type: 'finding', finding: f, updated: true })
+    })
+  }
+
   const httpMs = Date.now() - tHttp
 
   findings.sort((a, b) => b.score - a.score || a.domain.localeCompare(b.domain))
@@ -275,6 +309,8 @@ export async function runScan(input, opts = {}) {
     cacheHits: cached.size,
     cacheEnabled: cacheEnabled(),
     baselineOk,
+    httpRetried: noAnswer.length,
+    httpRecovered: recovered,
     evidenceArchived: findings.filter((f) => f.evidenceKey).length,
   }
   if (scanId && evidenceEnabled()) {
