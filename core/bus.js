@@ -30,8 +30,17 @@ export function natsUrl() {
 }
 
 export async function connectBus({ name = 'nakli', timeout = 5000 } = {}) {
+  // Presence + length only. These are credentials; their values must never be
+  // logged, and a length is enough to tell "unset" from "set but wrong".
+  const shape = ['NATS_URL', 'NATS_USER', 'NATS_PASSWORD', 'NATS_HOSTNAME', 'NATS_PORT']
+    .map((k) => `${k}=${process.env[k] === undefined ? 'unset' : `len:${String(process.env[k]).length}`}`)
+    .join(' ')
+  console.log('[bus] env shape:', shape)
+
   const servers = natsUrl()
   if (!servers) return null
+  // Scheme + host only - a connection string can carry credentials.
+  console.log('[bus] target:', servers.replace(/\/\/[^@]*@/, '//***@'))
 
   const opts = { servers, name, timeout, maxReconnectAttempts: -1, reconnectTimeWait: 1000 }
   // Only pass credentials when the URL does not already carry them, otherwise
