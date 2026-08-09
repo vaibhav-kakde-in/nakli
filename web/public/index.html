@@ -55,6 +55,13 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .chip{background:0;border:1px solid var(--line);color:var(--muted);font:400 13px 'Space Mono',monospace;padding:6px 12px;cursor:pointer}
 .chip:hover{border-color:var(--pink);color:var(--pink)}
 
+/* Once a scan starts the hero collapses: the headline has done its job and
+   the verdict + grid must be visible without scrolling. */
+body.run .hero{padding:22px 0 6px}
+body.run h1{font-size:clamp(20px,2.6vw,28px);letter-spacing:-.4px}
+body.run .sub,body.run .chips{display:none}
+.hero,h1{transition:font-size .3s ease,padding .3s ease}
+
 /* ---------- verdict ---------- */
 .verdict{text-align:center;padding:26px 0 8px;display:none}
 .verdict.on{display:block}
@@ -299,6 +306,7 @@ function start(brand){
   $('#verdict').classList.remove('on')
   ;['#stats','#gridwrap','#results'].forEach(s => $(s).classList.add('on'))
   $('#go').disabled = true
+  document.body.classList.add('run')
   ;['s-cand','s-live','s-high','s-filt'].forEach(id => $('#'+id).textContent = '0')
   grid.innerHTML = ''
   t0 = performance.now()
@@ -352,6 +360,7 @@ function finish(st, brand){
     ? `domains are impersonating <b>${esc(brand)}</b>`
     : `no high-risk impersonation found for <b>${esc(brand)}</b>`
   render()
+  $('#verdict').scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 </script>
 </body>
