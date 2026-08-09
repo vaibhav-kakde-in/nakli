@@ -30,6 +30,9 @@ zerops:
         DB_USER: ${db_user}
         DB_PASSWORD: ${db_password}
         DB_NAME: ${db_dbName}
+        NATS_URL: ${bus_connectionString}
+        NATS_USER: ${bus_user}
+        NATS_PASSWORD: ${bus_password}
       # execPeriod/failureTimeout are time.Duration - bare ints are rejected
       healthCheck:
         httpGet:
@@ -51,6 +54,11 @@ zerops:
     run:
       base: nodejs@22
       start: node probe/index.js
+      envVariables:
+        NATS_URL: ${bus_connectionString}
+        NATS_USER: ${bus_user}
+        NATS_PASSWORD: ${bus_password}
+        PROBE_CONCURRENCY: 25
 
   # ---------------------------------------------------------------- web
   - setup: web

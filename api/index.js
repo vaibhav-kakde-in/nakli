@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto'
 import { runScan } from '../core/scan.js'
 import { splitDomain } from '../core/permute.js'
 import { initDb, saveScan, loadScan, recentScans, dbHealth, dbEnabled } from '../core/db.js'
+import { connectBus, makeBusProbe } from '../core/bus.js'
+import { fetchProfile, makeResolver, resolveMx } from '../core/probe.js'
 
 const app = new Hono()
 app.use('/api/*', cors())
@@ -54,6 +56,7 @@ function startJob(origin, limit) {
 
   runScan(origin, {
     limit,
+    probeHost,
     onEvent: (ev) => {
       if (ev.type === 'permuted') job.progress = { stage: 'dns', candidates: ev.candidates }
       else if (ev.type === 'dns_progress') job.progress = { stage: 'dns', ...ev }
@@ -80,7 +83,12 @@ function startJob(origin, limit) {
 }
 
 app.get('/health', (c) => c.json({ ok: true }))
-app.get('/api/health', async (c) => c.json({ ok: true, db: await dbHealth() }))
+app.get('/api/health', async (c) =>
+  c.json({
+    ok: true,
+    db: await dbHealth(),
+    bus: { connected: !!nc && !nc.isClosed(), server: nc?.getServer() ?? null },
+  }))
 app.get('/api/recent', async (c) => c.json({ scans: await recentScans(12) }))
 
 app.get('/', (c) =>
@@ -167,7 +175,7 @@ app.get('/api/scan/stream', (c) => {
       const beat = setInterval(() => send({ type: 'ping', t: Date.now() }), 10_000)
       send({ type: 'scan_id', scanId })
       try {
-        const result = await runScan(parsed.origin, { limit, onEvent: send })
+        const result = await runScan(parsed.origin, { limit, probeHost, onEvent: send })
         await saveScan(scanId, parsed.origin, result).catch(() => false)
         send({ type: 'result', scanId, stats: result.stats, findings: result.findings })
       } catch (err) {
@@ -213,6 +221,16 @@ app.get('/api/scan/:id', async (c) => {
 
 
 await initDb()
+
+// Route per-host probing through the NATS workers when the broker is up.
+const nc = await connectBus({ name: 'nakli-api' })
+const apiResolver = makeResolver()
+const localProbe = async (domain) => {
+  const [prof, mx] = await Promise.all([fetchProfile(domain), resolveMx(apiResolver, domain)])
+  return { prof, mx, via: 'local' }
+}
+const probeHost = nc ? makeBusProbe(nc, localProbe) : null
+console.log(probeHost ? '[api] probing via NATS workers' : '[api] probing in-process (no NATS)')
 
 const port = Number(process.env.PORT) || 3000
 serve({ fetch: app.fetch, port, hostname: '::' })

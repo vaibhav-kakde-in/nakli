@@ -54,6 +54,10 @@ export async function runScan(input, opts = {}) {
     // not to us, so scan volume is the lever instead (see `limit`).
     httpConcurrency = 50,
     onEvent = () => {},
+    // Injectable so the api can route this through NATS to the probe workers.
+    // Defaults to probing in-process, which keeps the module testable and means
+    // a broker outage degrades performance rather than breaking the scan.
+    probeHost = null,
   } = opts
 
   const t0 = Date.now()
@@ -145,8 +149,16 @@ export async function runScan(input, opts = {}) {
 
   // --- stage 2: HTTP + favicon + MX on survivors ---
   const tHttp = Date.now()
-  const findings = await pool(live, httpConcurrency, async ({ domain, ips, i }) => {
+  const localProbe = async (domain) => {
     const [prof, mx] = await Promise.all([fetchProfile(domain), resolveMx(rpool.next(), domain)])
+    return { prof, mx, via: 'local' }
+  }
+  const probe = probeHost ?? localProbe
+  let viaWorker = 0
+
+  const findings = await pool(live, httpConcurrency, async ({ domain, ips, i }) => {
+    const { prof, mx, via } = await probe(domain)
+    if (via === 'worker') viaWorker++
     const f = {
       domain,
       i,
@@ -181,6 +193,8 @@ export async function runScan(input, opts = {}) {
     dnsMs,
     httpMs,
     totalMs: Date.now() - t0,
+    probedByWorkers: viaWorker,
+    probedLocally: live.length - viaWorker,
   }
   onEvent({ type: 'done', stats })
   return { stats, baseline, findings }

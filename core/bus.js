@@ -1,0 +1,74 @@
+/**
+ * NATS request/reply between the api and the probe workers.
+ *
+ * Why a broker at all: a scan fans out to hundreds of live hosts, each needing
+ * an HTTP fetch, a favicon fetch and an MX lookup. That work is IO-bound, bursty
+ * and completely independent per host - exactly what a queue group distributes
+ * well. Workers scale horizontally (1..5 containers) while the api stays single
+ * and cheap.
+ *
+ * Request/reply rather than fire-and-forget because the api needs the answer to
+ * score it, and NATS handles the correlation and load balancing for us.
+ *
+ * If NATS is unreachable the caller falls back to probing in-process. A broker
+ * outage should slow a scan down, not break it.
+ */
+
+import { connect, StringCodec } from 'nats'
+
+export const SUBJECT = 'nakli.probe'
+export const QUEUE = 'probes'
+
+const sc = StringCodec()
+
+export function natsUrl() {
+  const raw = process.env.NATS_URL || process.env.NATS_HOSTNAME
+  if (!raw) return null
+  if (raw.startsWith('nats://')) return raw
+  const port = process.env.NATS_PORT || '4222'
+  return `nats://${raw}:${port}`
+}
+
+export async function connectBus({ name = 'nakli', timeout = 5000 } = {}) {
+  const servers = natsUrl()
+  if (!servers) return null
+
+  const opts = { servers, name, timeout, maxReconnectAttempts: -1, reconnectTimeWait: 1000 }
+  // Only pass credentials when the URL does not already carry them, otherwise
+  // nats.js has two competing sources of truth.
+  if (!servers.includes('@') && process.env.NATS_USER) {
+    opts.user = process.env.NATS_USER
+    opts.pass = process.env.NATS_PASSWORD
+  }
+
+  try {
+    const nc = await connect(opts)
+    console.log(`[bus] connected to ${nc.getServer()}`)
+    return nc
+  } catch (e) {
+    console.error('[bus] connect failed, will probe in-process:', e.message)
+    return null
+  }
+}
+
+export const encode = (obj) => sc.encode(JSON.stringify(obj))
+export const decode = (msg) => JSON.parse(sc.decode(msg.data))
+
+/**
+ * Build a probe function backed by NATS.
+ * Falls back to `local` on timeout or transport error so one flaky worker
+ * cannot take findings away from a scan.
+ */
+export function makeBusProbe(nc, local, { timeout = 20000 } = {}) {
+  return async function probeHost(domain) {
+    try {
+      const reply = await nc.request(SUBJECT, encode({ domain }), { timeout })
+      const out = decode(reply)
+      if (out?.error) throw new Error(out.error)
+      return { prof: out.prof ?? {}, mx: out.mx ?? [], via: 'worker' }
+    } catch (e) {
+      const res = await local(domain)
+      return { ...res, via: 'local-fallback', fallbackReason: e.message }
+    }
+  }
+}
