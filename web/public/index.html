@@ -248,7 +248,23 @@ body.run #recent{display:none}
 .tag.high{color:var(--high)} .tag.medium{color:var(--med)} .tag.low{color:var(--low)}
 .ev{display:none;border:1px solid var(--line);border-top:0;background:#1c1c1b;padding:14px 16px;font-size:13.5px}
 .ev.on{display:block}
-.ev dl{display:grid;grid-template-columns:130px 1fr;gap:7px 14px}
+.ev{display:none}
+.ev.on{display:grid;grid-template-columns:1fr 300px;gap:22px;align-items:start}
+.ev dl{display:grid;grid-template-columns:130px 1fr;gap:7px 14px;margin:0}
+/* The arithmetic, for this domain specifically. A general weights table would
+   be a rubric; this is the tool showing its work on the row you clicked. */
+.calc{border-left:1px solid var(--line);padding-left:18px}
+.calc h4{font:500 10.5px 'Space Grotesk';letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:10px}
+.calc .r{display:flex;justify-content:space-between;gap:12px;font:400 12.5px 'Space Mono',monospace;
+  color:#c2c2bc;padding:3px 0}
+.calc .r b{font-weight:400;color:var(--ink)}
+.calc .r.big b{color:var(--high)}
+.calc .tot{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  border-top:1px solid var(--line);margin-top:9px;padding-top:9px;
+  font:400 12.5px 'Space Mono',monospace;color:var(--muted)}
+.calc .tot b{font:400 22px 'Space Grotesk';color:var(--high)}
+.calc .cap{color:var(--muted);font-size:11px;margin-top:7px;line-height:1.4}
 .ev dt{color:var(--muted)}
 .ev dd{font-family:'Space Mono',monospace;font-size:12.5px;word-break:break-all}
 .ev a{color:var(--pink)}
@@ -420,6 +436,8 @@ footer a:hover{color:var(--pink)}
   .stats{grid-template-columns:repeat(2,1fr)}
   .stat:nth-child(2){border-right:0}
   .stat:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .ev.on{grid-template-columns:1fr;gap:16px}
+  .calc{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:14px}
   .row{grid-template-columns:50px 1fr;gap:10px}
   .row .tag{display:none}
   form{flex-direction:column}
@@ -907,7 +925,20 @@ function render(){
           <small>${esc((f.reasons||[]).slice(0,3).join(' · ')) || '&nbsp;'}</small></div>
         <div class="threat">${esc(THREATS[f.threat] || f.band)}</div>
       </div>
-      <div class="ev" data-e="${f.domain}"><dl>${ev}</dl></div>`
+      <div class="ev" data-e="${f.domain}">
+        <dl>${ev}</dl>
+        <div class="calc">
+          <h4>How this scored</h4>
+          ${(() => {
+            const b = breakdown(f)
+            const raw = b.reduce((n, x) => n + x[1], 0)
+            return b.map(([label, pts, big]) =>
+              `<div class="r${big ? ' big' : ''}"><span>${esc(label)}</span><b>+${pts}</b></div>`).join('') +
+              `<div class="tot"><span>total</span><b>${f.score}</b></div>` +
+              (raw > 100 ? `<div class="cap">${raw} before the cap &mdash; scores are capped at 100.</div>` : '')
+          })()}
+        </div>
+      </div>`
   }).join('')
 }
 const CATS = [
@@ -964,6 +995,25 @@ const THREATS = {
   parked:                 'Parked',
   dormant:                'Dormant',
 }
+/** Reconstruct the score arithmetic for one finding.
+ *  Point values mirror core/score.js; deriving them from the finding's fields
+ *  rather than its reason strings keeps this robust to wording changes. */
+function breakdown(f){
+  const r = []
+  if (f.homograph?.visuallyIdentical) r.push(['visually identical to the real domain', 25, true])
+  else if (f.homograph?.confusables?.length) r.push(['non-ASCII lookalike characters', 10, true])
+  if (f.ips?.length) r.push(['resolves', 15])
+  if (f.mx?.length) r.push([`has MX (${f.mx.length})`, 12])
+  if (f.httpStatus && f.httpStatus < 400) r.push([`serves HTTP ${f.httpStatus}`, 15])
+  if (f.hasLoginForm) r.push(['password field present', 25, true])
+  if (f.faviconMatch) r.push(['favicon identical to brand', 30, true])
+  if (f.titleSimilarity > 0.6) r.push([`title ${Math.round(f.titleSimilarity*100)}% similar`, 20])
+  else if (f.titleSimilarity > 0.35) r.push([`title ${Math.round(f.titleSimilarity*100)}% similar`, 10])
+  if (f.bodySimilarity > 0.5) r.push([`content ${Math.round(f.bodySimilarity*100)}% similar`, 20])
+  if ((f.reasons || []).some(x => x === 'brand name in title')) r.push(['brand name in title', 15])
+  return r
+}
+
 const esc = s => String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))
 const pct = v => v ? Math.round(v*100) + '%' : '-'
 
