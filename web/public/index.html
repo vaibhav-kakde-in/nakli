@@ -17,7 +17,7 @@
   --med:#ffc900; --low:#6b6b68; --live:#ededed; --dead:#2e2e2c;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
 body{
   background:var(--canvas); color:var(--ink);
   font-family:'Space Grotesk',Avenir,Montserrat,Corbel,sans-serif;
@@ -27,17 +27,27 @@ body{
 .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
 
 /* ---------- header ---------- */
-header{border-bottom:1px solid var(--line)}
+/* Sticky so the section nav stays reachable down a long page. The blur keeps it
+   legible over content; where backdrop-filter is unsupported the background
+   colour alone still covers. */
+header{border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10;
+  background:rgba(0,0,0,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .hrow{display:flex;align-items:center;justify-content:space-between;height:64px}
 .brand{font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--ink);text-decoration:none;display:inline-block}
 .brand:hover em{opacity:.7}
 .brand em{font-style:normal;color:var(--pink)}
-.ghost{color:var(--muted);text-decoration:none;font-size:14px;border:1px solid var(--line);padding:7px 14px}
+.ghost{color:var(--muted);text-decoration:none;font-size:14px;border:1px solid var(--line);padding:7px 14px;
+  transition:color .18s ease,border-color .18s ease}
 .ghost:hover{color:var(--ink);border-color:var(--ink)}
 /* The nav only points at landing sections, so it goes when they do. */
 .nav{display:flex;gap:26px}
-.nav a{color:var(--muted);text-decoration:none;font-size:14px}
-.nav a:hover{color:var(--ink)}
+.nav a{position:relative;color:var(--muted);text-decoration:none;font-size:14px;transition:color .18s ease}
+/* Underline sweeps in on hover and stays lit for the section you are in. These
+   are navigation links, so pink is doing its actual job here. */
+.nav a::after{content:'';position:absolute;left:0;right:0;bottom:-6px;height:1px;background:var(--pink);
+  transform:scaleX(0);transform-origin:left;transition:transform .22s cubic-bezier(.2,.7,.3,1)}
+.nav a:hover,.nav a.here{color:var(--ink)}
+.nav a:hover::after,.nav a.here::after{transform:scaleX(1)}
 body.run .nav{display:none}
 .hend{display:flex;align-items:center;gap:14px}
 
@@ -56,14 +66,19 @@ button{
   background:var(--pink);color:#000;border:0;border-radius:0;cursor:pointer;
   font:700 16px/1 'Space Grotesk',sans-serif;letter-spacing:.06em;padding:0 30px;
 }
+button{transition:filter .18s ease,transform .12s ease,opacity .18s ease}
 button:hover{filter:brightness(1.08)}
+/* A real press, not just a colour change - the one bit of motion that is
+   feedback rather than decoration. */
+button:not(:disabled):active{transform:translateY(1px)}
 button:disabled{opacity:.45;cursor:not-allowed}
 .row-block{margin-top:22px}
 .rlabel{display:block;font-size:12px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;color:#cfcfc9;margin-bottom:10px}
 .rlabel em{font-style:normal;color:var(--pink)}
 .chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
-.chip{background:0;border:1px solid #4a4a46;color:var(--ink);font:400 13px 'Space Mono',monospace;padding:7px 13px;cursor:pointer}
-.chip:hover{border-color:var(--pink);color:var(--pink)}
+.chip{background:0;border:1px solid #4a4a46;color:var(--ink);font:400 13px 'Space Mono',monospace;padding:7px 13px;cursor:pointer;
+  transition:border-color .18s ease,color .18s ease,transform .18s cubic-bezier(.2,.7,.3,1)}
+.chip:hover{border-color:var(--pink);color:var(--pink);transform:translateY(-1px)}
 
 /* Once a scan starts the hero collapses: the headline has done its job and
    the verdict + grid must be visible without scrolling. */
@@ -103,7 +118,9 @@ body.run .sub,body.run #tryblock{display:none}
 .share button:hover{border-color:var(--pink);color:var(--pink)}
 #recent{font-size:12.5px;color:var(--muted)}
 #recent a{display:inline-flex;align-items:baseline;gap:8px;border:1px solid #4a4a46;padding:7px 12px;margin:0 6px 6px 0;
-  color:var(--ink);text-decoration:none;font-family:'Space Mono',monospace;font-size:12.5px}
+  color:var(--ink);text-decoration:none;font-family:'Space Mono',monospace;font-size:12.5px;
+  transition:border-color .18s ease,color .18s ease,transform .18s cubic-bezier(.2,.7,.3,1)}
+#recent a:hover{transform:translateY(-1px)}
 #recent a i{font-style:normal;font-family:'Space Grotesk';font-size:11px;color:#9a9a94}
 .rescan{margin-top:12px}
 .rescan button{background:0;border:1px solid var(--pink);color:var(--pink);font:400 12px 'Space Grotesk';
