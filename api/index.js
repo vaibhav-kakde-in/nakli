@@ -133,22 +133,8 @@ app.get('/api/scan', (c) => {
   )
 })
 
-app.get('/api/scan/:id', (c) => {
-  const job = jobs.get(c.req.param('id'))
-  if (!job) return c.json({ error: 'unknown scan id' }, 404)
-  if (job.status === 'error') return c.json({ scanId: job.id, status: 'error', error: job.error }, 500)
-  if (job.status === 'running') {
-    return c.json({
-      scanId: job.id,
-      status: 'running',
-      brand: job.origin,
-      elapsedMs: Date.now() - job.startedAt,
-      progress: job.progress,
-    })
-  }
-  return c.json({ scanId: job.id, status: 'done', ...job.result })
-})
-
+// NOTE: this literal route MUST be registered before '/api/scan/:id',
+// otherwise Hono matches 'stream' as a scan id and returns 404.
 app.get('/api/scan/stream', (c) => {
   const parsed = parseBrand(c.req.query('brand'))
   if (parsed.error) return c.json({ error: parsed.error }, 400)
@@ -191,6 +177,23 @@ app.get('/api/scan/stream', (c) => {
     },
   })
 })
+
+app.get('/api/scan/:id', (c) => {
+  const job = jobs.get(c.req.param('id'))
+  if (!job) return c.json({ error: 'unknown scan id' }, 404)
+  if (job.status === 'error') return c.json({ scanId: job.id, status: 'error', error: job.error }, 500)
+  if (job.status === 'running') {
+    return c.json({
+      scanId: job.id,
+      status: 'running',
+      brand: job.origin,
+      elapsedMs: Date.now() - job.startedAt,
+      progress: job.progress,
+    })
+  }
+  return c.json({ scanId: job.id, status: 'done', ...job.result })
+})
+
 
 const port = Number(process.env.PORT) || 3000
 serve({ fetch: app.fetch, port, hostname: '::' })
