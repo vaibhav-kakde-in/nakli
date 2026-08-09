@@ -70,6 +70,18 @@ body.run .sub,body.run .chips{display:none}
 .vtext{font-size:clamp(15px,2.6vw,24px);letter-spacing:.02em;margin-top:6px}
 .vtext b{font-weight:500}
 
+.share{margin-top:14px;font-size:13px;color:var(--muted)}
+.share code{font-family:'Space Mono',monospace;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:4px 8px;font-size:12px}
+.share button{background:0;border:1px solid var(--line);color:var(--muted);font:400 11px 'Space Grotesk';letter-spacing:.1em;padding:5px 10px;text-transform:uppercase;margin-left:6px}
+.share button:hover{border-color:var(--pink);color:var(--pink)}
+#recent{margin-top:22px;font-size:12.5px;color:var(--muted)}
+#recent .rlabel{letter-spacing:.14em;text-transform:uppercase;font-size:10.5px;display:block;margin-bottom:8px}
+#recent a{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);padding:5px 10px;margin:0 6px 6px 0;
+  color:var(--muted);text-decoration:none;font-family:'Space Mono',monospace;font-size:12px}
+#recent a:hover{border-color:var(--pink);color:var(--pink)}
+#recent a b{color:var(--high);font-weight:400}
+body.run #recent{display:none}
+
 /* ---------- stats ---------- */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);margin-top:30px;display:none}
 .stats.on{display:grid}
@@ -155,6 +167,7 @@ footer a{color:var(--muted)}
       <input id="q" value="paypal.com" spellcheck="false" aria-label="brand or domain">
       <button id="go">SCAN</button>
     </form>
+    <div id="recent"></div>
     <div class="chips" id="chips">
       <button class="chip" type="button">paypal.com</button>
       <button class="chip" type="button">github.com</button>
@@ -166,6 +179,7 @@ footer a{color:var(--muted)}
   <section class="verdict" id="verdict">
     <div class="vnum" id="vnum">0</div>
     <div class="vtext" id="vtext"></div>
+    <div class="share" id="share"></div>
   </section>
 
   <section class="stats" id="stats">
@@ -211,7 +225,7 @@ footer a{color:var(--muted)}
 <script>
 const $ = s => document.querySelector(s)
 const grid = $('#grid'), rows = $('#rows'), tip = $('#tip')
-let domains = [], cells = [], findings = [], es = null, t0 = 0, timer = null
+let domains = [], cells = [], findings = [], es = null, t0 = 0, timer = null, currentScanId = null
 const show = { high:true, medium:true, low:false }
 
 const fmt = n => n.toLocaleString('en-US')
@@ -299,10 +313,38 @@ document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () =
 
 $('#f').addEventListener('submit', e => { e.preventDefault(); start($('#q').value.trim()) })
 
+/** Recently scanned brands, straight out of Postgres - the persistence layer
+ *  earning its place on screen rather than sitting behind an API. */
+async function loadRecent(){
+  try{
+    const r = await fetch('/api/recent').then(x => x.json())
+    if (!r.scans?.length) return
+    $('#recent').innerHTML = '<span class="rlabel">recently scanned</span>' + r.scans.map(s =>
+      `<a href="?scan=${s.scanId}">${esc(s.brand)}${s.high ? ` <b>${s.high}</b>` : ''}</a>`).join('')
+  }catch{ /* landing page works without it */ }
+}
+
+/** Open a stored scan by id - the link stays valid after the job is reaped. */
+async function openSaved(id){
+  try{
+    const d = await fetch('/api/scan/' + encodeURIComponent(id)).then(x => x.json())
+    if (!d.stats) return
+    document.body.classList.add('run')
+    ;['#stats','#results'].forEach(sel => $(sel).classList.add('on'))
+    $('#q').value = d.stats.origin
+    findings = d.findings || []
+    currentScanId = id
+    finish(d.stats, d.stats.origin, true)
+  }catch{ /* fall through to the normal landing page */ }
+}
+
+const saved = new URLSearchParams(location.search).get('scan')
+if (saved) openSaved(saved); else loadRecent()
+
 function start(brand){
   if (!brand) return
   es?.close(); clearInterval(timer)
-  findings = []; rows.innerHTML = ''
+  findings = []; rows.innerHTML = ''; currentScanId = null; $('#share').innerHTML = ''
   $('#verdict').classList.remove('on')
   ;['#stats','#gridwrap','#results'].forEach(s => $(s).classList.add('on'))
   $('#go').disabled = true
@@ -315,7 +357,8 @@ function start(brand){
   es = new EventSource('/api/scan/stream?brand=' + encodeURIComponent(brand))
   es.onmessage = m => {
     const e = JSON.parse(m.data)
-    if (e.type === 'permuted'){
+    if (e.type === 'scan_id') currentScanId = e.scanId
+    else if (e.type === 'permuted'){
       buildGrid(e.domains); countTo($('#s-cand'), e.candidates); $('#stage').textContent = 'resolving dns'
     }
     else if (e.type === 'dns_batch'){
@@ -345,11 +388,13 @@ function start(brand){
   es.onerror = () => { es.close(); clearInterval(timer); $('#go').disabled = false; $('#stage').textContent = 'connection closed' }
 }
 
-function finish(st, brand){
+function finish(st, brand, restored=false){
   es?.close(); clearInterval(timer)
   $('#go').disabled = false
-  $('#stage').textContent = 'complete'
-  $('#elapsed').textContent = (st.totalMs/1000).toFixed(1) + 's'
+  if (!restored){
+    $('#stage').textContent = 'complete'
+    $('#elapsed').textContent = (st.totalMs/1000).toFixed(1) + 's'
+  }
   countTo($('#s-cand'), st.candidates); countTo($('#s-live'), st.resolved)
   countTo($('#s-high'), st.high); countTo($('#s-filt'), st.wildcardFiltered)
   const v = $('#verdict'), n = $('#vnum')
@@ -360,6 +405,11 @@ function finish(st, brand){
     ? `domains are impersonating <b>${esc(brand)}</b>`
     : `no high-risk impersonation found for <b>${esc(brand)}</b>`
   render()
+  if (currentScanId){
+    const url = location.origin + '/?scan=' + currentScanId
+    $('#share').innerHTML = `saved &mdash; <code>${esc(url)}</code><button id="cp">copy</button>`
+    $('#cp').onclick = () => { navigator.clipboard?.writeText(url); $('#cp').textContent = 'copied' }
+  }
   $('#verdict').scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 </script>

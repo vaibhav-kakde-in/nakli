@@ -145,6 +145,11 @@ app.get('/api/scan/stream', (c) => {
   if (parsed.error) return c.json({ error: parsed.error }, 400)
   const limit = wantLimit(c)
 
+  // The stream runs its own scan rather than attaching to a job, so it has to
+  // mint an id and persist the result itself - otherwise a scan started from
+  // the UI would never be shareable.
+  const scanId = randomUUID()
+
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     async start(controller) {
@@ -160,9 +165,11 @@ app.get('/api/scan/stream', (c) => {
       // A heartbeat keeps the proxy from idling the connection out during the
       // quiet stretch between DNS batches.
       const beat = setInterval(() => send({ type: 'ping', t: Date.now() }), 10_000)
+      send({ type: 'scan_id', scanId })
       try {
         const result = await runScan(parsed.origin, { limit, onEvent: send })
-        send({ type: 'result', stats: result.stats, findings: result.findings })
+        await saveScan(scanId, parsed.origin, result).catch(() => false)
+        send({ type: 'result', scanId, stats: result.stats, findings: result.findings })
       } catch (err) {
         send({ type: 'error', message: String(err?.message ?? err) })
       } finally {
