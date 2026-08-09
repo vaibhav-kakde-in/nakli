@@ -50,15 +50,21 @@ zerops:
       base: nodejs@22
       buildCommands:
         - npm install --omit=dev
-        - npm install --prefix web
-        - npm run build --prefix web
       deployFiles: ./
       cache:
         - node_modules
-        - web/node_modules
     run:
       base: nodejs@22
       ports:
         - port: 3000
           httpSupport: true
-      start: npm run start --prefix web
+      start: node web/server.js
+      envVariables:
+        # reached over the project's private network, not the public internet
+        API_URL: http://api:3000
+      healthCheck:
+        httpGet:
+          port: 3000
+          path: /healthz
+        execPeriod: 10s
+        failureTimeout: 60s

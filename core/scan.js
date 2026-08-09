@@ -59,7 +59,7 @@ export async function runScan(input, opts = {}) {
   const t0 = Date.now()
   const { name, tld, origin } = splitDomain(input)
   const candidates = permute(name, tld, limit)
-  onEvent({ type: 'permuted', origin, candidates: candidates.length })
+  onEvent({ type: 'permuted', origin, candidates: candidates.length, domains: candidates })
 
   const resolver = makeResolver()
   const rpool = makeResolverPool(12)
@@ -93,28 +93,45 @@ export async function runScan(input, opts = {}) {
   const live = []
   const unknown = []
 
-  const record = (domain, ips) => {
-    if (!ips.length) return
-    if (isWildcard(wildcards, domain, ips)) {
-      wildcardFiltered++
-      return
-    }
-    live.push({ domain, ips })
+  // Per-candidate results are streamed in small batches so the UI can render
+  // every lookup as it lands. One event per candidate would be 1800 messages;
+  // batching keeps the stream cheap while still looking continuous.
+  let batch = []
+  const flush = () => {
+    if (!batch.length) return
+    onEvent({ type: 'dns_batch', cells: batch })
+    batch = []
+  }
+  const mark = (i, state) => {
+    batch.push([i, state])
+    if (batch.length >= 25) flush()
   }
 
-  await pool(candidates, dnsConcurrency, async (domain) => {
+  const record = (domain, ips, i) => {
+    if (!ips.length) return mark(i, 'dead')
+    if (isWildcard(wildcards, domain, ips)) {
+      wildcardFiltered++
+      return mark(i, 'wildcard')
+    }
+    live.push({ domain, ips, i })
+    mark(i, 'live')
+  }
+
+  await pool(candidates, dnsConcurrency, async (domain, i) => {
     const r = await resolveA(rpool.next(), domain)
     if (++done % 250 === 0) onEvent({ type: 'dns_progress', done, total: candidates.length })
-    if (r.unknown) unknown.push(domain)
-    else record(domain, r.ips)
+    if (r.unknown) unknown.push([domain, i])
+    else record(domain, r.ips, i)
   })
+  flush()
 
   if (unknown.length) {
     onEvent({ type: 'dns_retry', count: unknown.length })
-    await pool(unknown, 15, async (domain) => {
+    await pool(unknown, 15, async ([domain, i]) => {
       const r = await resolveA(rpool.next(), domain)
-      record(domain, r.ips)
+      record(domain, r.ips, i)
     })
+    flush()
   }
 
   const dnsMs = Date.now() - tDns
@@ -128,10 +145,11 @@ export async function runScan(input, opts = {}) {
 
   // --- stage 2: HTTP + favicon + MX on survivors ---
   const tHttp = Date.now()
-  const findings = await pool(live, httpConcurrency, async ({ domain, ips }) => {
+  const findings = await pool(live, httpConcurrency, async ({ domain, ips, i }) => {
     const [prof, mx] = await Promise.all([fetchProfile(domain), resolveMx(rpool.next(), domain)])
     const f = {
       domain,
+      i,
       ips,
       mx,
       httpStatus: prof.status ?? null,
