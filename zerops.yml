@@ -69,11 +69,13 @@ zerops:
   - setup: web
     build:
       base: nodejs@22
+      # web/server.js imports ONLY node: builtins - no npm install, and only the
+      # web folder is shipped. Deploying the shared 30MB node_modules here was
+      # pure waste on every UI change.
       buildCommands:
-        - npm install --omit=dev
-      deployFiles: ./
-      cache:
-        - node_modules
+        - echo "no build step - static assets and a dependency-free server"
+      deployFiles:
+        - web
     run:
       base: nodejs@22
       ports:

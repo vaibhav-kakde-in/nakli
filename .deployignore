@@ -1,0 +1,5 @@
+# Local validation harness and captured scan output - never needed at runtime
+tools
+*.log
+scan_*.json
+.github
