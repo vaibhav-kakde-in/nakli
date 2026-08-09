@@ -12,7 +12,24 @@
 
 No sign-up. Type a brand, or click one of the examples.
 
+![nakli result for paypal.com](docs/result.jpg)
+
+*Every square is one real DNS lookup — 1,800 of them, streaming live. Red squares are
+active impersonators. `paypal.com`: **18 high risk**, and **8 domains visually
+indistinguishable from the real one**.*
+
 ---
+
+## Real results
+
+All live at time of writing — scan any of them yourself:
+
+| Brand | Found |
+|---|---|
+| `paypal.com` | **18 high-risk** — `paypal-secure.net`, `paypal-support.net`, `paypal.net`, all serving PayPal's exact page |
+| `stripe.com` | **13 high-risk** — `support-stripe.com`, `update-stripe.com`, `stripe-account.com` |
+| `twitch.tv` | **55 high-risk** |
+| `netflix.com` | **18 high-risk** — `netflix.org` and `netflix.xyz` both score 100 |
 
 ## The problem
 
@@ -21,17 +38,8 @@ Brand-impersonation phishing starts with a domain: `paypal-secure.net`, `support
 
 The data needed to find these first is public — DNS, HTTP, MX records, favicons — but nobody
 correlates it on demand for an arbitrary brand. Existing tools are either offline CLIs
-(dnstwist) or enterprise platforms. Nothing gives you an instant, evidence-backed answer
-from a browser, for free.
-
-**Real results from this tool, all live at time of writing:**
-
-| Brand | Found |
-|---|---|
-| `paypal.com` | 13 high-risk — `paypal-secure.net`, `paypal-support.net`, `paypal.net` all serving PayPal's exact page |
-| `stripe.com` | 13 high-risk — `support-stripe.com`, `update-stripe.com`, `stripe-account.com` |
-| `twitch.tv` | 55 high-risk |
-| `netflix.com` | 18 high-risk — `netflix.org` and `netflix.xyz` score 100 |
+(dnstwist) or enterprise platforms. Nothing gives you an instant, evidence-backed answer from
+a browser, for free.
 
 ## How it works
 
@@ -46,6 +54,10 @@ brand: "paypal.com"
   ↓  score → classify       "credential harvester", not just "97"
   ↓  archive                the page as we saw it, to object storage
 ```
+
+![scan in progress](docs/scanning.jpg)
+
+*Mid-scan: the DNS stage reporting real progress and the domain it is checking.*
 
 **The funnel is the trick.** 1,800 candidates collapse to ~250 live hosts, so the expensive
 HTTP work only touches ~14% of the set. That is what keeps a scan usable.
@@ -73,6 +85,24 @@ flags the character, names its script, and shows the punycode — `xn--pypal-4ve
 the only form where the deception is visible.
 
 ## Architecture on Zerops
+
+```mermaid
+flowchart LR
+  U([Browser]) -- SSE --> W["web<br/>Node.js 22"]
+  W -- private network --> A["api<br/>Node.js 22"]
+  A -- queue group --> N(["bus<br/>NATS 2.12"])
+  N --> P["probe ×1–5<br/>Node.js 22"]
+  P -- "DNS · HTTP · favicon · MX" --> I{{"public internet"}}
+  A --> D[("db<br/>PostgreSQL 16")]
+  A --> C[("cache<br/>Valkey 7.2")]
+  A --> S["evidence<br/>object storage"]
+  Z["zcp<br/>Zerops Control Plane"] -.-> A
+
+  classDef svc fill:#242423,stroke:#ff90e8,color:#ddd
+  classDef ext fill:#000,stroke:#6b6b68,color:#8a8a85
+  class W,A,P,D,C,S,N svc
+  class U,I,Z ext
+```
 
 All eight services do real work.
 
@@ -104,34 +134,57 @@ Two things the platform forced, both load-bearing:
 
 ## What I learned
 
-Every one of these was found by measuring, not by reading the code.
+Every one of these was found by measuring, not by reading the code. Each has a number
+attached, and each contradicted what the code assumed.
 
-**Concurrency made things worse, twice.** Pushing DNS to 200-wide found *zero* high-risk
-domains and missed `hdfcbank.net` — a byte-identical clone — entirely. Public resolvers
-silently drop answers when hammered, and a dropped answer is indistinguishable from "no such
-domain" unless you check the error code. At 80-wide with NXDOMAIN and timeouts treated
-differently, the same scan found it at score 97. Later, raising HTTP concurrency to 150 cut
-that stage from 85s to 10.5s and dropped high-risk findings from 17 to 2 — a brand's
-lookalikes share one CDN, and 150 parallel connections read as an attack.
+| | |
+|---|---|
+| **More concurrency was worse — twice** | DNS at 200-wide found **0** high-risk and missed a byte-identical clone. HTTP at 150 was **8× faster and dropped findings 17 → 2** |
+| **A socket leak cost 45× throughput** | One HTTP stage took **724 seconds**; ~16s after aborting the losing request |
+| **Alphabetical sorting hid the best findings** | `slice(0, limit)` after a sort cut the highest-scoring domain because 'h' sorts late |
+| **Wildcard DNS makes a scanner lie** | First run reported **169 domains that did not exist** |
+| **A tighter timeout was a correctness bug** | Shaving the HTTP timeout took a scan from **8 high-risk to 1** |
+| **Persistence must store derived fields** | Restored scans mislabelled every finding as "Dormant" |
+| **Rendering per event froze the browser** | 231 findings → 231 full list rebuilds, ~250k DOM elements |
 
-**A socket leak cost 45× throughput.** `fetchProfile` raced https against http with
-`Promise.any` and never cancelled the loser. An undici response whose body is never read holds
-its socket, so leaked losers exhausted the connection pool: one scan spent **724 seconds** in
-the HTTP stage, versus ~16s once the losers were aborted.
+<details>
+<summary><b>The detail behind each</b></summary>
 
-**Sorting candidates alphabetically hid the best ones.** `slice(0, limit)` after a sort cut
-`hdfcbank.net` purely because 'h' sorts late. Candidates are now emitted in priority tiers.
+**Concurrency, twice.** Pushing DNS to 200-wide found *zero* high-risk domains and missed
+`hdfcbank.net` — a byte-identical clone — entirely. Public resolvers silently drop answers
+when hammered, and a dropped answer is indistinguishable from "no such domain" unless you
+check the error code. At 80-wide, with NXDOMAIN and timeouts treated differently, the same
+scan found it at score 97. Later, raising HTTP concurrency to 150 cut that stage from 85s to
+10.5s and dropped high-risk findings from 17 to 2 — a brand's lookalikes share one CDN, and
+150 parallel connections read as an attack.
 
-**Wildcard DNS makes a scanner lie.** Some registries resolve every name. The first local run
-reported 169 domains that did not exist. Two random probes per TLD now calibrate this away.
+**The socket leak.** `fetchProfile` raced https against http with `Promise.any` and never
+cancelled the loser. An undici response whose body is never read holds its socket, so leaked
+losers exhausted the connection pool: one scan spent 724 seconds in the HTTP stage, versus
+~16s once the losers were aborted.
 
-**A tighter timeout can be a correctness bug.** Cutting the HTTP timeout to save wall-clock
-took `hdfcbank.com` from 8 high-risk to 1: the real bank is slower than the squatters copying
-it, and with no baseline title every similarity score collapses to zero.
+**Priority tiers.** Candidates were sorted alphabetically before slicing to the limit, which
+cut `hdfcbank.net` purely because 'h' sorts late. They are now emitted in tiers — exact brand
+on other TLDs first, then combosquats, then variants — so the limit trims the tail, never the
+head.
 
-**Persistence has to store the derived fields too.** Restored scans mislabelled every finding —
-an active clone came back as "Dormant" — because `threat` had no column and the classifier
-defaulted.
+**Wildcard calibration.** Some registries resolve every name. The first local run reported 169
+domains that did not exist. Two random probes per TLD now calibrate this away.
+
+**Baseline timeouts.** Cutting the HTTP timeout to save wall-clock took `hdfcbank.com` from 8
+high-risk to 1: the real bank is slower than the squatters copying it, and with no baseline
+title every similarity score collapses to zero. The baseline now gets its own patient
+dispatcher and three retries — and if it still fails, the UI says so rather than reporting a
+confident, empty result.
+
+**Derived fields.** `threat`, `homograph` and `evidenceKey` had no columns, so a restored scan
+ran the classifier's default and labelled active clones as "Dormant".
+
+**Render throttling.** `render()` rebuilds the findings list with `innerHTML` and ran on every
+finding event — 231 rebuilds of a growing list, each with a 9-row evidence table per row. The
+tab locked up exactly when results landed. Renders are now coalesced to one per 400ms.
+
+</details>
 
 ## Local development
 

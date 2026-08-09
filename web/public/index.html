@@ -1006,13 +1006,17 @@ function countProof(){
   }
 }
 
-/** Both closing calls to action point back at the one input that matters. */
+/** Both closing calls to action point back at the one input that matters.
+ *
+ *  Focus BEFORE the scroll, never after: moving focus cancels an in-flight
+ *  smooth scroll, so the original order left the button doing nothing but put a
+ *  caret in a box three thousand pixels off screen. */
 function toScanBox(e){
   if (e) e.preventDefault()
-  scrollTo({ top: 0, behavior: 'smooth' })
   const q = $('#q')
   q.focus({ preventScroll: true })
   q.select()
+  scrollTo({ top: 0, behavior: 'smooth' })
 }
 $('#cta-scan').addEventListener('click', () => toScanBox())
 $('#f-top').addEventListener('click', toScanBox)
