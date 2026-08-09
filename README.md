@@ -8,7 +8,7 @@
 |---|---|
 | **Live app** | https://web-2ca4-3000.prg1.zerops.app |
 | **API** | https://api-2ca4-3000.prg1.zerops.app |
-| **Example result** | [`stripe.com` — 13 high-risk](https://web-2ca4-3000.prg1.zerops.app/?scan=45089000-5992-4cb2-b63d-2f68550f4112) |
+| **Example result** | [`paypal.com` — 18 high risk, replays the full grid](https://web-2ca4-3000.prg1.zerops.app/?scan=3f777bf1-eb91-4465-b53d-25cd3ba22614) |
 
 No sign-up. Type a brand, or click one of the examples.
 
