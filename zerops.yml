@@ -10,10 +10,12 @@ zerops:
     build:
       base: nodejs@22
       buildCommands:
-        - npm install --omit=dev --prefix api
+        # deps live in the ROOT package.json so core/ resolves them too - a
+        # per-app node_modules is invisible to a sibling directory
+        - npm install --omit=dev
       deployFiles: ./
       cache:
-        - api/node_modules
+        - node_modules
     run:
       base: nodejs@22
       ports:
@@ -34,10 +36,10 @@ zerops:
     build:
       base: nodejs@22
       buildCommands:
-        - npm install --omit=dev --prefix probe
+        - npm install --omit=dev
       deployFiles: ./
       cache:
-        - probe/node_modules
+        - node_modules
     run:
       base: nodejs@22
       start: node probe/index.js
@@ -47,10 +49,12 @@ zerops:
     build:
       base: nodejs@22
       buildCommands:
+        - npm install --omit=dev
         - npm install --prefix web
         - npm run build --prefix web
       deployFiles: ./
       cache:
+        - node_modules
         - web/node_modules
     run:
       base: nodejs@22
