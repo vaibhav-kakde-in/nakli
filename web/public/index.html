@@ -248,7 +248,8 @@ body.run #recent{display:none}
    the way of the answer, so the whole block leaves rather than being scrolled
    past - same reasoning as the hero collapse above. */
 body.run .landing{display:none}
-.band{border-top:1px solid var(--line)}
+/* scroll-margin keeps an anchored section clear of the sticky header. */
+.band{border-top:1px solid var(--line);scroll-margin-top:76px}
 .band>.wrap{padding-top:78px;padding-bottom:78px}
 .kicker{display:flex;align-items:center;gap:11px;font:500 11.5px 'Space Grotesk',sans-serif;
   letter-spacing:.19em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
@@ -268,8 +269,10 @@ body.run .landing{display:none}
 /* features */
 .fgrid{display:grid;grid-template-columns:repeat(3,1fr);margin-top:38px;
   border:1px solid var(--line);border-right:0;border-bottom:0}
+/* Background shift only. These cards are not clickable, so they get no lift and
+   no pink - both would promise an interaction that is not there. */
 .f{border-right:1px solid var(--line);border-bottom:1px solid var(--line);
-  padding:28px 26px;background:var(--surface)}
+  padding:28px 26px;background:var(--surface);transition:background-color .22s ease}
 .f:hover{background:var(--surface-2)}
 .f svg{width:21px;height:21px;stroke:var(--pink);stroke-width:1.4;fill:none;
   stroke-linecap:square;stroke-linejoin:miter;display:block;margin-bottom:15px}
@@ -279,7 +282,10 @@ body.run .landing{display:none}
 
 /* how it works */
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:38px}
-.step{border-top:2px solid var(--pink);padding-top:20px}
+/* The rule is a pseudo-element rather than a border so it can draw itself in as
+   the step arrives. Without .js-motion it simply sits there at full width. */
+.step{position:relative;padding-top:20px}
+.step::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--pink);transform-origin:left}
 .step .num{font:400 12px 'Space Mono',monospace;color:var(--pink);letter-spacing:.1em}
 .step h3{font-size:20px;font-weight:400;margin:9px 0 10px;letter-spacing:-.3px}
 .step p{font-size:14px;color:var(--muted);line-height:1.55}
@@ -289,7 +295,9 @@ body.run .landing{display:none}
 /* what it catches - labels and copy come straight from classify.js */
 .tgrid{display:grid;grid-template-columns:repeat(4,1fr);margin-top:38px;
   border:1px solid var(--line);border-right:0;border-bottom:0}
-.t{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:21px 22px}
+.t{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:21px 22px;
+  transition:background-color .22s ease}
+.t:hover{background:var(--surface)}
 .t h3{font-size:14.5px;font-weight:500;margin-bottom:7px}
 .t p{font-size:12.8px;color:var(--muted);line-height:1.5}
 
@@ -325,11 +333,52 @@ footer a:hover{color:var(--pink)}
 .fsay i{font-style:italic}
 .fnote{margin-top:18px;font-size:13px;line-height:1.6;max-width:44ch}
 .fcol h4{font:500 11px 'Space Grotesk',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#cfcfc9;margin-bottom:14px}
-.fcol a{display:block;margin-bottom:10px;font-size:13.5px}
+/* width:fit-content so the sweep hugs the text instead of the whole column. */
+.fcol a{display:block;width:fit-content;position:relative;margin-bottom:10px;font-size:13.5px;
+  transition:color .18s ease}
+.fcol a::after{content:'';position:absolute;left:0;right:0;bottom:-2px;height:1px;background:var(--pink);
+  transform:scaleX(0);transform-origin:left;transition:transform .22s cubic-bezier(.2,.7,.3,1)}
+.fcol a:hover::after{transform:scaleX(1)}
 .fbot{border-top:1px solid var(--line);padding:20px 0 42px;display:flex;
   justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;font-size:12.5px}
 .fbot .built a{color:var(--ink)}
 .fbot .built a:hover{color:var(--pink)}
+
+/* ---------- motion ---------- */
+/* The hidden state exists ONLY under .js-motion, which the script adds after it
+   has confirmed IntersectionObserver is available. If the script never runs, or
+   the browser is too old, every section renders normally. A landing page that
+   hides its own content and waits for JS to give it back is one failed request
+   away from being blank. */
+.js-motion .reveal{opacity:0;transform:translateY(16px)}
+.js-motion .reveal{transition:opacity .34s cubic-bezier(.2,.7,.3,1),transform .34s cubic-bezier(.2,.7,.3,1);
+  transition-delay:calc(var(--i,0) * 50ms)}
+.js-motion .reveal.in{opacity:1;transform:none}
+
+/* Each step's rule draws itself left-to-right just behind its text. */
+.js-motion .step::before{transform:scaleX(0);
+  transition:transform .5s cubic-bezier(.2,.7,.3,1);transition-delay:calc(var(--i,0) * 60ms + 140ms)}
+.js-motion .step.in::before{transform:scaleX(1)}
+
+/* Hero entrance. Deliberately an animation and not a transition: h1 and .hero
+   already transition font-size and padding for the run-collapse, and folding
+   opacity/transform into that same transition made the collapse look broken. */
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.js-motion .hero>h1,.js-motion .hero>.sub,.js-motion .hero>form{
+  animation:rise .42s cubic-bezier(.2,.7,.3,1) both}
+.js-motion .hero>h1{animation-delay:.05s}
+.js-motion .hero>.sub{animation-delay:.13s}
+.js-motion .hero>form{animation-delay:.21s}
+/* Both rows arrive from the network, so they animate when filled, not on load. */
+.js-motion #chips.pop,.js-motion #recent.pop{animation:rise .38s cubic-bezier(.2,.7,.3,1) both}
+
+/* The one character in the example that a reader cannot catch - so it is the one
+   thing on the page that asks for attention twice. */
+@keyframes markpulse{
+  0%,100%{background:rgba(220,52,30,.18)}
+  40%{background:rgba(220,52,30,.5)}
+}
+.js-motion .example.in mark{animation:markpulse 1.15s ease .45s 2}
 
 @media(max-width:980px){
   .fgrid,.tgrid{grid-template-columns:repeat(2,1fr)}
@@ -355,6 +404,23 @@ footer a:hover{color:var(--pink)}
   .example .why dt{margin-top:6px}
   .fmain{grid-template-columns:1fr;gap:30px;padding:48px 0 34px}
   .nav{display:none}
+}
+
+/* Last in the sheet so it wins on order. Everything above is decoration except
+   the button press; none of it is worth making somebody motion-sick over. The
+   content must end up visible and static - never stuck at opacity:0. */
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{
+    animation-duration:.01ms !important;animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;transition-delay:0ms !important;
+    scroll-behavior:auto !important;
+  }
+  .js-motion .reveal{opacity:1;transform:none}
+  .js-motion .step::before{transform:scaleX(1)}
+  .js-motion .hero>h1,.js-motion .hero>.sub,.js-motion .hero>form,
+  .js-motion #chips.pop,.js-motion #recent.pop{animation:none}
+  .js-motion .example.in mark{animation:none}
 }
 </style>
 </head>
@@ -731,6 +797,27 @@ function paintCells(str, animate = true){
   requestAnimationFrame(step)
 }
 
+let renderQueued = false, lastRenderAt = 0
+
+/** Coalesce renders during streaming.
+ *
+ *  render() rebuilds the whole findings list with innerHTML. Calling it per
+ *  finding is O(n^2): a paypal.com scan emits 231 findings, each triggering a
+ *  full rebuild of an ever-growing list with a 9-row evidence table per row -
+ *  roughly a quarter of a million element creations. It froze the tab outright.
+ *  At most one render per 400ms while streaming; the 'done' handler renders
+ *  directly so the final state is never delayed. */
+function scheduleRender(){
+  if (renderQueued) return
+  renderQueued = true
+  const wait = Math.max(0, 400 - (performance.now() - lastRenderAt))
+  setTimeout(() => {
+    renderQueued = false
+    lastRenderAt = performance.now()
+    renderSummary(); render()
+  }, wait)
+}
+
 function render(){
   // Counts reflect the active category filter, so they always describe the list
   // the buttons are actually toggling.
@@ -873,6 +960,7 @@ async function loadRecent(){
     .map(b => `<button class="chip" type="button">${esc(b)}</button>`).join('')
   // A heading with an empty row under it reads as a broken page, not a spare one.
   $('#tryblock').style.display = chips.length ? '' : 'none'
+  if (chips.length) $('#chips').classList.add('pop')
   bindChips()
 
   if (shown.length){
@@ -880,6 +968,7 @@ async function loadRecent(){
       '<span class="rlabel">Earlier scans &mdash; open instantly, then re-run live</span>' +
       shown.map(s =>
         `<a href="?scan=${s.scanId}">${esc(s.brand)} <i>${ago(s.createdAt)}</i></a>`).join('')
+    $('#recent').classList.add('pop')
   }
 
   proofTotals(recent)
@@ -889,13 +978,32 @@ async function loadRecent(){
  *  feed the row above. Every figure on this page traces back to a row in
  *  Postgres - if the query fails the band keeps its dashes rather than
  *  inventing a total. */
+let proofFigures = null, proofInView = false, proofCounted = false
+
 function proofTotals(recent){
   if (!recent.length) return
   const sum = k => recent.reduce((a, s) => a + (s[k] || 0), 0)
-  countTo($('#p-scans'), recent.length)
-  countTo($('#p-cand'), sum('candidates'))
-  countTo($('#p-live'), sum('resolved'))
-  countTo($('#p-high'), sum('high'))
+  proofFigures = [
+    ['#p-scans', recent.length], ['#p-cand', sum('candidates')],
+    ['#p-live', sum('resolved')], ['#p-high', sum('high')],
+  ]
+  countProof()
+}
+
+/** The count-up only pays for itself if somebody is looking at it. The band sits
+ *  well below the fold, so running it the moment the fetch resolved meant the
+ *  animation was always over before it came into view and the figures read as
+ *  hardcoded. Runs once, when BOTH the data and the viewer have arrived - in
+ *  either order. */
+function countProof(){
+  if (proofCounted || !proofFigures || !proofInView) return
+  proofCounted = true
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+  for (const [sel, value] of proofFigures){
+    const el = $(sel)
+    if (!el) continue
+    if (still) el.textContent = fmt(value); else countTo(el, value)
+  }
 }
 
 /** Both closing calls to action point back at the one input that matters. */
@@ -948,6 +1056,100 @@ async function openSaved(id){
 }
 
 const saved = new URLSearchParams(location.search).get('scan')
+/**
+ * Landing-page motion: scroll reveal, stagger, and the nav's scroll-spy.
+ *
+ * Deliberately scoped to `#landing`. The results path rebuilds `#rows` wholly on
+ * every SSE finding event, so an entry animation there would re-fire hundreds of
+ * times during one scan and strobe.
+ *
+ * Elements are unobserved the moment they land. A reveal that replays every time
+ * you scroll back up stops reading as an entrance and starts reading as a twitch.
+ */
+function initMotion(){
+  // No observer, no hidden state. Order matters: the class that hides things is
+  // only ever added once we know we can show them again.
+  if (!('IntersectionObserver' in window)) return
+  document.documentElement.classList.add('js-motion')
+
+  // Containers whose CHILDREN stagger, instead of the container moving as a slab.
+  const GROUPS = '.proof, .fgrid, .tgrid, .steps'
+  const targets = []
+
+  for (const band of document.querySelectorAll('#landing .band')){
+    const wrap = band.querySelector('.wrap')
+    if (!wrap) continue
+    let i = 0
+    for (const child of wrap.children){
+      for (const el of (child.matches(GROUPS) ? child.children : [child])){
+        el.classList.add('reveal')
+        // Capped: uncapped, the ninth feature card would still be arriving half a
+        // second after the first, which on a fast scroll reads as lag, not stagger.
+        el.style.setProperty('--i', Math.min(i++, 5))
+        targets.push(el)
+      }
+    }
+  }
+
+  // An observer always delivers one initial callback per target, intersecting or
+  // not. So silence here means it is genuinely broken - which is a different
+  // thing from "nothing has scrolled into view yet", and only the first warrants
+  // dumping every section on screen at once.
+  let observerAlive = false
+  const io = new IntersectionObserver((entries) => {
+    observerAlive = true
+    for (const e of entries){
+      if (!e.isIntersecting) continue
+      e.target.classList.add('in')
+      io.unobserve(e.target)
+    }
+    // threshold 0 rather than a fraction: a tall block (a section heading, a
+    // wide card) would otherwise wait until 15% of it had cleared the fold, and
+    // a fast scroll then lands on a blank screen that fills in behind you. Fire
+    // as soon as any part crosses, slightly before the true edge.
+  }, { threshold: 0, rootMargin: '0px 0px -40px 0px' })
+  targets.forEach(t => io.observe(t))
+
+  // Last line of defence. Content beats choreography: a page that never reveals
+  // itself is far worse than one that reveals itself without ceremony.
+  setTimeout(() => {
+    if (observerAlive) return
+    targets.forEach(t => t.classList.add('in'))
+    proofInView = true
+    countProof()
+  }, 4000)
+
+  const proof = document.querySelector('.proof')
+  if (proof){
+    const pio = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting)) return
+      pio.disconnect()
+      proofInView = true
+      countProof()
+    }, { threshold: .25 })
+    pio.observe(proof)
+  } else {
+    proofInView = true
+  }
+
+  // Scroll-spy for the header nav - same mechanism, no scroll listener. The
+  // margins keep the "current" section to whatever is crossing the middle.
+  const links = [...document.querySelectorAll('.nav a')]
+  if (links.length){
+    const spy = new IntersectionObserver(entries => {
+      for (const e of entries){
+        if (!e.isIntersecting) continue
+        links.forEach(a => a.classList.toggle('here', a.getAttribute('href') === '#' + e.target.id))
+      }
+    }, { rootMargin: '-45% 0px -50% 0px' })
+    for (const link of links){
+      const sec = document.querySelector(link.getAttribute('href'))
+      if (sec) spy.observe(sec)
+    }
+  }
+}
+
+initMotion()
 if (saved) openSaved(saved); else loadRecent()
 
 function start(brand){
@@ -1028,7 +1230,7 @@ function start(brand){
          : f.httpStatus ? `HTTP ${f.httpStatus}` : 'no response')
       if (cells[f.i]) cells[f.i].dataset.s = f.band
       countTo($('#s-high'), findings.filter(x => x.band === 'high').length, 200)
-      renderSummary(); render()
+      scheduleRender()
     }
     else if (e.type === 'done'){
       finish(e.stats, brand)
@@ -1087,7 +1289,9 @@ function finish(st, brand, restored=false){
       `so title and content matching are excluded from these scores. Counts here are a floor, not a total \u2014 re-run to retry.`
   } else w.classList.remove('on')
 
+  renderQueued = true          // cancel any in-flight throttled render
   renderSummary(); render()
+  renderQueued = false
   // A restored scan already shows its own "saved result" badge; the permalink
   // block is for a scan the user just ran.
   if (currentScanId && !restored){
