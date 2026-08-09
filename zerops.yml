@@ -33,6 +33,7 @@ zerops:
         NATS_URL: ${bus_connectionString}
         NATS_USER: ${bus_user}
         NATS_PASSWORD: ${bus_password}
+        CACHE_URL: ${cache_connectionString}
       # execPeriod/failureTimeout are time.Duration - bare ints are rejected
       healthCheck:
         httpGet:

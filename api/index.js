@@ -6,6 +6,7 @@ import { runScan } from '../core/scan.js'
 import { splitDomain } from '../core/permute.js'
 import { initDb, saveScan, loadScan, recentScans, dbHealth, dbEnabled } from '../core/db.js'
 import { connectBus, makeBusProbe } from '../core/bus.js'
+import { initCache, cacheHealth } from '../core/cache.js'
 import { fetchProfile, makeResolver, resolveMx } from '../core/probe.js'
 
 const app = new Hono()
@@ -88,6 +89,7 @@ app.get('/api/health', async (c) =>
     ok: true,
     db: await dbHealth(),
     bus: { connected: !!nc && !nc.isClosed(), server: nc?.getServer() ?? null },
+    cache: await cacheHealth(),
   }))
 app.get('/api/recent', async (c) => c.json({ scans: await recentScans(12) }))
 
@@ -221,6 +223,7 @@ app.get('/api/scan/:id', async (c) => {
 
 
 await initDb()
+await initCache()
 
 // Route per-host probing through the NATS workers when the broker is up.
 const nc = await connectBus({ name: 'nakli-api' })

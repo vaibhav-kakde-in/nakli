@@ -15,6 +15,7 @@ import {
   isWildcard, fetchProfile, similarity,
 } from './probe.js'
 import { score, band } from './score.js'
+import { getMany, setMany, getWildcards, setWildcards, cacheEnabled } from './cache.js'
 
 /** Run `worker` over `items` with a bounded number in flight. */
 async function pool(items, limit, worker) {
@@ -69,7 +70,11 @@ export async function runScan(input, opts = {}) {
   const rpool = makeResolverPool(12)
 
   // --- stage 0: which TLDs answer everything? ---
-  const wildcards = await detectWildcards(resolver, TLDS)
+  let wildcards = await getWildcards()
+  if (!wildcards) {
+    wildcards = await detectWildcards(resolver, TLDS)
+    await setWildcards(wildcards)
+  }
   if (wildcards.size) {
     onEvent({ type: 'wildcards', tlds: [...wildcards.keys()] })
   }
@@ -121,11 +126,31 @@ export async function runScan(input, opts = {}) {
     mark(i, 'live')
   }
 
-  await pool(candidates, dnsConcurrency, async (domain, i) => {
+  // Bulk cache read before touching a resolver. On a repeat scan this answers
+  // almost everything and the DNS stage collapses to near-zero.
+  const cached = await getMany(candidates)
+  const toResolve = []
+  candidates.forEach((domain, i) => {
+    if (cached.has(domain)) {
+      done++
+      record(domain, cached.get(domain), i)
+    } else {
+      toResolve.push([domain, i])
+    }
+  })
+  flush()
+  if (cached.size) onEvent({ type: 'cache_hits', hits: cached.size, total: candidates.length })
+
+  const fresh = []
+  await pool(toResolve, dnsConcurrency, async ([domain, i]) => {
     const r = await resolveA(rpool.next(), domain)
     if (++done % 250 === 0) onEvent({ type: 'dns_progress', done, total: candidates.length })
     if (r.unknown) unknown.push([domain, i])
-    else record(domain, r.ips, i)
+    else {
+      // Only definitive answers are cacheable - see cache.js.
+      fresh.push([domain, r.ips])
+      record(domain, r.ips, i)
+    }
   })
   flush()
 
@@ -133,10 +158,13 @@ export async function runScan(input, opts = {}) {
     onEvent({ type: 'dns_retry', count: unknown.length })
     await pool(unknown, 15, async ([domain, i]) => {
       const r = await resolveA(rpool.next(), domain)
+      if (!r.unknown) fresh.push([domain, r.ips])
       record(domain, r.ips, i)
     })
     flush()
   }
+
+  await setMany(fresh)
 
   const dnsMs = Date.now() - tDns
   onEvent({
@@ -195,6 +223,8 @@ export async function runScan(input, opts = {}) {
     totalMs: Date.now() - t0,
     probedByWorkers: viaWorker,
     probedLocally: live.length - viaWorker,
+    cacheHits: cached.size,
+    cacheEnabled: cacheEnabled(),
   }
   onEvent({ type: 'done', stats })
   return { stats, baseline, findings }
